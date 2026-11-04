@@ -1,0 +1,1768 @@
+import json
+import uuid
+from datetime import datetime
+from typing import Any
+
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from common.vo import CrudResponseModel
+from exceptions.exception import ServiceException
+from ezdata import prompts as ez_prompts
+from ezdata import services as ez_services
+from ezdata.handlers import Capability, create_handler, get_handler_cls
+from ezdata.utils.etl_util import (
+    assert_readonly_sql,
+    is_file_target,
+    json_safe_rows,
+    serialize_records,
+    short_err,
+    stream_statement,
+)
+from module_data.dao.data_dao import (
+    DashboardCanvasDao,
+    DashboardDao,
+    DataModelDao,
+    DataSourceDao,
+)
+from module_data.entity.do.data_do import DataModel, DataSource
+from module_data.service.access_audit import audit
+from module_data.entity.vo.data_vo import (
+    AnalysisTemplateVo,
+    DashboardVo,
+    DataModelQuery,
+    DataModelVo,
+    DataSourceQuery,
+    DataSourceVo,
+    QueryReq,
+    SearchReq,
+    TestConnReq,
+)
+from utils.crypto_util import CryptoUtil
+
+MASK = '******'
+
+
+def _decrypt_secrets(ds: DataSource) -> dict:
+    if not ds.secrets:
+        return {}
+    try:
+        return json.loads(CryptoUtil.decrypt(ds.secrets))
+    except Exception:
+        return {}
+
+
+def _build_handler(source_type: str, config: dict | None, secrets: dict | None, *, cache: bool = True) -> Any:
+    return create_handler(source_type, config or {}, secrets or {}, cache=cache)
+
+
+def _handler_from_ds(ds: DataSource) -> Any:
+    return _build_handler(ds.source_type, ds.config or {}, _decrypt_secrets(ds))
+
+
+def _apply_params(native: Any, params: dict | None) -> Any:
+    """把看板变量 {{name}} 替换进 native。
+
+    - 字符串 native(SQL):字符串值做安全引用(转义单引号),数字原样;
+    - dict/list native(ES DSL / Mongo pipeline):在 JSON 串上替换——`"{{k}}"` 整体换成 JSON 值,
+      裸 `{{k}}` 兜底按字符串替换,再 json.loads 还原。
+    无 params 原样返回。(分析师本就能写任意 native,此替换不新增越权面。)
+    """
+    if not params:
+        return native
+
+    def _sql_quote(v: Any) -> str:
+        if v is None:
+            return 'NULL'
+        if isinstance(v, bool):
+            return '1' if v else '0'
+        if isinstance(v, (int, float)):
+            return str(v)
+        return "'" + str(v).replace("'", "''") + "'"
+
+    if isinstance(native, str):
+        out = native
+        for k, v in params.items():
+            out = out.replace('{{' + str(k) + '}}', _sql_quote(v))
+        return out
+    txt = json.dumps(native, ensure_ascii=False)
+    for k, v in params.items():
+        token = '"{{' + str(k) + '}}"'
+        if token in txt:
+            txt = txt.replace(token, json.dumps(v, ensure_ascii=False))
+        else:
+            txt = txt.replace('{{' + str(k) + '}}', str(v))
+    return json.loads(txt)
+
+
+def _board_param_values(defs: Any) -> dict:
+    """看板变量定义数组(存储态 [{name,label,type,default,value}])→ 取数用 {name: value}。
+    与前端 board.js paramsToValues 一致:空值回退默认,daterange 展开 名_start/名_end。"""
+    out: dict = {}
+    for p in (defs or []):
+        if not isinstance(p, dict) or not p.get('name'):
+            continue
+        val = p.get('value')
+        if val in (None, ''):
+            val = p.get('default')
+        if p.get('type') == 'daterange' and isinstance(val, list) and len(val) == 2:
+            out[p['name'] + '_start'] = val[0]
+            out[p['name'] + '_end'] = val[1]
+        else:
+            out[p['name']] = val
+    return out
+
+
+def _source_structure_text(ds: DataSource, max_tables: int = 30, max_fields: int = 40) -> str:
+    """采集数据源结构文本(表 + 字段),供 AI 分析业务上下文。有上限,避免超大库把 prompt 撑爆。同步阻塞,由调用方 threadpool 包裹。"""
+    try:
+        handler = _handler_from_ds(ds)
+        tables = handler.list_tables() or []
+    except Exception as e:
+        return f'(无法读取结构: {e})'
+    is_api = getattr(handler, 'family', '') == 'api'
+    lines = [f'共 {len(tables)} 张{"接口" if is_api else "表"}:']
+    for t in tables[:max_tables]:
+        try:
+            cols = handler.get_columns(t)
+        except Exception:
+            lines.append(f'- {t}')
+            continue
+        fs = ', '.join((f'{c.name}:{getattr(c, "type", "")}').rstrip(':') for c in cols[:max_fields])
+        more = ' …' if len(cols) > max_fields else ''
+        lines.append(f'- {t}({fs}{more})')
+    if len(tables) > max_tables:
+        lines.append(f'…(还有 {len(tables) - max_tables} 张未列)')
+    return '\n'.join(lines)
+
+
+async def _ai_resolve_cfg(db: AsyncSession) -> dict:
+    """解析系统内部 AI 生成(ETL 取数/转换、数据查询 AI 取数)所用模型。
+
+    这些入口没有"选模型"的 UI,统一用**系统兜底模型**(环境变量 LLM_*);
+    仅当兜底未配置时,才回退到「AI 模型管理」里第一个启用的模型(便于纯库内配置的部署)。
+    """
+    from config.env import AiConfig
+
+    if AiConfig.enabled:  # 首选:系统兜底模型(api_key 明文)
+        return dict(
+            provider=AiConfig.provider,
+            model_code=AiConfig.llm_model,
+            model_name=None,
+            api_key=AiConfig.llm_api_key,
+            base_url=AiConfig.llm_url or None,
+            max_tokens=AiConfig.llm_max_tokens or 1024,
+        )
+
+    # 兜底未配置 → 回退库内第一个启用模型(api_key 为 AES 密文)
+    from sqlalchemy import select
+
+    from module_ai.entity.do.ai_model_do import AiModels
+
+    mc = (
+        (await db.execute(select(AiModels).where(AiModels.status == '0').order_by(AiModels.model_sort)))
+        .scalars()
+        .first()
+    )
+    if mc:
+        if not mc.api_key:  # 启用了但没填 key:给清楚提示,而不是暴露 provider 的环境变量名
+            raise ServiceException(
+                message=f'启用的模型「{mc.model_name or mc.model_code}」未配置 API Key,'
+                f'请在「AI 模型管理」补全,或配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY)'
+            )
+        return dict(
+            provider=mc.provider,
+            model_code=mc.model_code,
+            model_name=mc.model_name,
+            api_key=CryptoUtil.decrypt(mc.api_key),
+            base_url=mc.base_url,
+            max_tokens=mc.max_tokens or 1024,
+        )
+    raise ServiceException(
+        message='未配置可用 AI 模型:请配置环境变量兜底模型(LLM_TYPE/LLM_MODEL/LLM_API_KEY[/LLM_URL]),或在「AI 模型管理」启用一个'
+    )
+
+
+def _strip_fence(text: str) -> str:
+    """去掉 markdown ```lang ... ``` 代码围栏。"""
+    t = (text or '').strip()
+    if t.startswith('```'):
+        t = t.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+    return t
+
+
+async def _ai_complete(db: AsyncSession, prompt: str) -> str:
+    """一次性补全并返回文本(自动去围栏)。稍弱模型追加"严格只输出目标格式"强化尾注。"""
+    from utils.ai_util import AiUtil
+
+    cfg = await _ai_resolve_cfg(db)
+    if ez_prompts.is_weak_model(cfg.get('model_code')):
+        prompt = prompt + ez_prompts.WEAK_OUTPUT_REINFORCE
+
+    def _run() -> str:
+        from agno.agent import Agent
+
+        out = Agent(model=AiUtil.get_model_from_factory(**cfg)).run(prompt)
+        return _strip_fence(getattr(out, 'content', None) or str(out))
+
+    return await run_in_threadpool(_run)
+
+
+def _ai_stream(cfg: dict, prompt: str):
+    """同步生成器:流式产出文本增量,供 StreamingResponse 使用(围栏由前端采用时再去除)。"""
+    from agno.agent import Agent
+
+    from utils.ai_util import AiUtil
+
+    if ez_prompts.is_weak_model(cfg.get('model_code')):
+        prompt = prompt + ez_prompts.WEAK_OUTPUT_REINFORCE
+    try:
+        agent = Agent(model=AiUtil.get_model_from_factory(**cfg))
+        produced = False
+        for ev in agent.run(prompt, stream=True):
+            chunk = getattr(ev, 'content', None)
+            if chunk:
+                produced = True
+                yield chunk
+        if not produced:  # 个别模型/版本不产 content 增量事件,回退整段
+            out = Agent(model=AiUtil.get_model_from_factory(**cfg)).run(prompt)
+            yield getattr(out, 'content', None) or str(out)
+    except Exception as e:
+        yield f'\n[生成出错] {short_err(e)}'
+
+
+class DataMetaService:
+    """静态元信息:源类型 / 连接 schema / 操作符。"""
+
+    @staticmethod
+    def source_types() -> list[dict]:
+        # 委托 ezdata,再转 camelCase 对齐前端/接口约定(source_type -> sourceType)
+        return [
+            {
+                'sourceType': t['source_type'],
+                'title': t['title'],
+                'family': t['family'],
+                'capabilities': t['capabilities'],
+            }
+            for t in ez_services.list_source_types()
+        ]
+
+    @staticmethod
+    def connection_schema(source_type: str) -> dict:
+        return ez_services.connection_schema(source_type)
+
+    @staticmethod
+    def source_type_icon(source_type: str) -> str | None:
+        """该数据源类型的品牌图标 SVG 文本(供前端渲染);未注册/无图标返回 None。"""
+        return ez_services.source_type_icon(source_type)
+
+    @staticmethod
+    def operators() -> list[dict]:
+        return ez_services.operators()
+
+
+class DataSourceService:
+    """数据源服务。"""
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, q: DataSourceQuery, is_page: bool = False) -> Any:
+        from ezdata.handlers import get_write_modes
+
+        result = await DataSourceDao.get_list(db, q, is_page)
+        for row in result.rows if is_page else result:
+            row['secrets'] = None  # 列表不回密文
+            # 作为 ETL 写入目标支持的装载模式(纯读源为空);前端据此过滤写入模式选项。
+            # PageUtil 已把行序列化成 camelCase,故读 sourceType、写 writeModes(与前端消费一致)。
+            row['writeModes'] = get_write_modes(row.get('sourceType') or '')
+        return result
+
+    @classmethod
+    async def detail(cls, db: AsyncSession, ds_id: str) -> DataSourceVo:
+        ds = await DataSourceDao.get_by_id(db, ds_id)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        # 不读 DO 的密文 secrets,手动构造 + 脱敏
+        vo = DataSourceVo(
+            id=ds.id,
+            name=ds.name,
+            code=ds.code,
+            source_type=ds.source_type,
+            family=ds.family,
+            config=ds.config,
+            status=ds.status,
+            last_test_at=ds.last_test_at,
+            remark=ds.remark,
+            create_by=ds.create_by,
+            create_time=ds.create_time,
+            update_by=ds.update_by,
+            update_time=ds.update_time,
+        )
+        secret_fields = get_handler_cls(ds.source_type).secret_fields() if ds.source_type else []
+        vo.secrets = dict.fromkeys(secret_fields, MASK) if secret_fields else None
+        return vo
+
+    @classmethod
+    async def prep_analyze_context(cls, db: AsyncSession, ds_id: str) -> tuple[dict, str]:
+        """AI 解析业务上下文:读**现有描述 + 整体结构**,拼提示词 + 模型配置(供流式生成)。"""
+        ds = await DataSourceDao.get_by_id(db, ds_id)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        structure = await run_in_threadpool(_source_structure_text, ds)
+        current = (ds.remark or '').strip() or '(暂无)'
+        prompt = (
+            f'你是数据平台的建模与业务分析专家。下面是数据源「{ds.name}」(类型 {ds.source_type})的**现有描述**与**整体结构**。'
+            '请先读懂现有描述,再结合结构,产出/完善这个数据源的**业务上下文文档**,供后续 AI 取数时参考。\n'
+            '覆盖(有则写、无则略;简洁 Markdown,中文):① 数据源用途与主要业务对象;② 关键表/接口及含义;'
+            '③ 表间关系/常用 join;④ 重要指标口径(怎么算);⑤ 常见问法 → 用哪张表/哪些字段;'
+            '⑥ 取数注意(如 ES 文本聚合用 .keyword、akshare 是函数调用非 SQL、时间字段格式等)。\n'
+            '只输出业务上下文文档本身,不要寒暄、不要代码块包裹整篇。\n\n'
+            f'【现有描述】\n{current}\n\n【整体结构】\n{structure}'
+        )
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    async def add(cls, db: AsyncSession, vo: DataSourceVo, operator: str) -> CrudResponseModel:
+        try:
+            obj = {
+                'id': uuid.uuid4().hex,
+                'name': vo.name,
+                'code': vo.code or uuid.uuid4().hex[:8],
+                'source_type': vo.source_type,
+                'family': get_handler_cls(vo.source_type).family if vo.source_type else None,
+                'config': vo.config or {},
+                'secrets': CryptoUtil.encrypt(json.dumps(vo.secrets)) if vo.secrets else None,
+                'status': 'untested',
+                'remark': vo.remark,
+                'create_by': operator,
+                'create_time': datetime.now(),
+            }
+            await DataSourceDao.add(db, obj)
+            await db.commit()
+            return CrudResponseModel(is_success=True, message='新增成功')
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
+    async def edit(cls, db: AsyncSession, vo: DataSourceVo, operator: str) -> CrudResponseModel:
+        ds = await DataSourceDao.get_by_id(db, vo.id)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        try:
+            data: dict[str, Any] = {'update_by': operator, 'update_time': datetime.now()}
+            # code / source_type / family 是引用锚点,创建后不可改(防止下游引用串掉)
+            for f in ('name', 'config', 'remark'):
+                if getattr(vo, f) is not None:
+                    data[f] = getattr(vo, f)
+            # 仅当传了非脱敏 secrets 才更新
+            if vo.secrets and MASK not in vo.secrets.values():
+                data['secrets'] = CryptoUtil.encrypt(json.dumps(vo.secrets))
+            await DataSourceDao.edit(db, vo.id, data)
+            await db.commit()
+            return CrudResponseModel(is_success=True, message='修改成功')
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
+    async def delete(cls, db: AsyncSession, ids: str) -> CrudResponseModel:
+        try:
+            await DataSourceDao.remove(db, [i for i in ids.split(',') if i])
+            await db.commit()
+            return CrudResponseModel(is_success=True, message='删除成功')
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
+    async def test_connection(cls, db: AsyncSession, req: TestConnReq) -> dict:
+        if req.id:
+            ds = await DataSourceDao.get_by_id(db, req.id)
+            if not ds:
+                raise ServiceException(message='数据源不存在')
+            handler = _handler_from_ds(ds)
+        else:
+            handler = _build_handler(req.source_type, req.config, req.secrets, cache=False)  # 未保存配置不入缓存
+        result = await run_in_threadpool(handler.test_connection)
+        if req.id:
+            await DataSourceDao.edit(
+                db, req.id, {'status': 'ok' if result.success else 'failed', 'last_test_at': datetime.now()}
+            )
+            await db.commit()
+        return {'success': result.success, 'message': result.message, 'latencyMs': result.latency_ms}
+
+    @classmethod
+    async def list_tables(cls, db: AsyncSession, ds_id: str) -> list[str]:
+        ds = await DataSourceDao.get_by_id(db, ds_id)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+        return await run_in_threadpool(handler.list_tables)
+
+    @classmethod
+    async def get_columns(cls, db: AsyncSession, ds_id: str, table: str) -> list[dict]:
+        ds = await DataSourceDao.get_by_id(db, ds_id)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+        cols = await run_in_threadpool(handler.get_columns, table)
+        return [{'name': c.name, 'type': c.type, 'nullable': c.nullable, 'comment': c.comment} for c in cols]
+
+
+class DataModelService:
+    """数据模型服务。"""
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, q: DataModelQuery, is_page: bool = False) -> Any:
+        return await DataModelDao.get_list(db, q, is_page)
+
+    @classmethod
+    async def detail(cls, db: AsyncSession, m_id: str) -> DataModelVo:
+        m = await DataModelDao.get_by_id(db, m_id)
+        if not m:
+            raise ServiceException(message='数据模型不存在')
+        vo = DataModelVo.model_validate(m)
+        # 字段是 introspect 缓存:种子直插的模型 / 建模时底表还没数据(如 ES 索引当时为空)会留空。
+        # 留空则按 数据源+object_name 实时取一次字段并回填缓存,使字段表格不再空(ES/SQL 通用)。
+        if not vo.fields and m.datasource_code and m.object_name:
+            cols = None
+            try:
+                ds = await DataSourceDao.get_by_code(db, m.datasource_code)
+                if ds:
+                    handler = _handler_from_ds(ds)
+                    cols = await run_in_threadpool(handler.get_columns, m.object_name)
+            except Exception:
+                cols = None
+            if cols:
+                vo.fields = [
+                    {'name': c.name, 'type': c.type, 'nullable': c.nullable, 'comment': c.comment} for c in cols
+                ]
+                try:  # 回填缓存,下次直接读库;失败不影响本次返回
+                    await DataModelDao.edit(db, m_id, {'fields': vo.fields})
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+        return vo
+
+    @classmethod
+    async def ensure_custom_query_model(cls, db: AsyncSession, datasource_code: str, operator: str) -> str:
+        """get-or-create 该数据源的 custom_query 模型(承接对话图表存看板);每源复用一个,返回 model_id。"""
+        if not datasource_code:
+            raise ServiceException(message='缺少数据源编码')
+        existing = await DataModelDao.get_custom_query(db, datasource_code)
+        if existing:
+            return existing.id
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        m = await DataModelDao.add(
+            db,
+            {
+                'id': uuid.uuid4().hex,
+                'name': f'自定义查询-{ds.name or datasource_code}',
+                'code': 'cq_' + uuid.uuid4().hex[:8],
+                'datasource_code': datasource_code,
+                'kind': 'custom_query',
+                'object_name': '',
+                'auth': 'query',
+                'status': 1,
+                'create_by': operator,
+                'create_time': datetime.now(),
+            },
+        )
+        return m.id
+
+    @classmethod
+    async def add(cls, db: AsyncSession, vo: DataModelVo, operator: str) -> CrudResponseModel:
+        try:
+            obj = vo.model_dump(exclude={'id', 'create_time', 'update_time', 'create_by', 'update_by'})
+            obj.update(
+                id=uuid.uuid4().hex,
+                code=vo.code or uuid.uuid4().hex[:8],
+                create_by=operator,
+                create_time=datetime.now(),
+            )
+            await DataModelDao.add(db, obj)
+            await db.commit()
+            await cls._sync_catalog_index(obj['id'])
+            return CrudResponseModel(is_success=True, message='新增成功')
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
+    async def edit(cls, db: AsyncSession, vo: DataModelVo, operator: str) -> CrudResponseModel:
+        m = await DataModelDao.get_by_id(db, vo.id)
+        if not m:
+            raise ServiceException(message='数据模型不存在')
+        try:
+            data = vo.model_dump(exclude_unset=True, exclude={'id', 'create_time', 'create_by'})
+            data.update(update_by=operator, update_time=datetime.now())
+            await DataModelDao.edit(db, vo.id, data)
+            await cls._mark_metrics_stale(db, [vo.id])  # 血缘影响:改模型 → 依赖指标待复核
+            await db.commit()
+            await cls._sync_catalog_index(vo.id)
+            return CrudResponseModel(is_success=True, message='修改成功')
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
+    async def delete(cls, db: AsyncSession, ids: str) -> CrudResponseModel:
+        id_list = [i for i in ids.split(',') if i]
+        try:
+            # 删除前捕获目录索引键(tenant, code, object),提交后再删索引
+            keys = []
+            for mid in id_list:
+                m = await DataModelDao.get_by_id(db, mid)
+                if m and m.object_name:
+                    keys.append((m.tenant_id, m.datasource_code, m.object_name))
+            await cls._mark_metrics_stale(db, id_list)  # 血缘影响:删模型 → 依赖指标待复核
+            await DataModelDao.remove(db, id_list)
+            await db.commit()
+            await cls._remove_catalog_index(keys)
+            return CrudResponseModel(is_success=True, message='删除成功')
+        except Exception as e:
+            await db.rollback()
+            raise e
+
+    @classmethod
+    async def _mark_metrics_stale(cls, db: AsyncSession, model_ids: list) -> None:
+        """血缘影响分析:绑定这些模型的指标置 review_state=stale(待复核)。失败不阻断主流程。"""
+        try:
+            from module_data.dao.data_metric_dao import DataMetricDao
+
+            await DataMetricDao.mark_stale_by_models(db, [i for i in model_ids if i])
+        except Exception:
+            pass
+
+    @classmethod
+    async def _sync_catalog_index(cls, model_id: str) -> None:
+        """增量同步数据目录检索索引(add/edit 后);索引不可用/异常不影响主流程。"""
+        try:
+            from module_ai.tools.catalog_index import CatalogRetrievalService
+
+            await run_in_threadpool(CatalogRetrievalService.sync_model_by_id, model_id)
+        except Exception:
+            pass
+
+    @classmethod
+    async def _remove_catalog_index(cls, keys: list) -> None:
+        try:
+            from module_ai.tools.catalog_index import CatalogRetrievalService
+
+            await run_in_threadpool(CatalogRetrievalService.remove_keys, keys)
+        except Exception:
+            pass
+
+
+_CHART_TYPES = frozenset({
+    'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
+    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kline',
+    'combo', 'waterfall', 'heatmap', 'boxplot', 'treemap', 'sankey', 'kpi', 'table',
+})
+_CHART_AGGS = frozenset({'sum', 'avg', 'count', 'max', 'min', 'none'})
+
+
+def _chart_cfg_prompt(columns: list[str], question: str) -> str:
+    """让 LLM 依据数据列 + 自然语言,产出 EchartsBuilder 的图表配置 JSON(只输出 JSON)。"""
+    return (
+        '你是数据可视化专家。现有数据列(必须严格使用这些列名,不要杜撰):\n'
+        f'{", ".join(columns)}\n\n'
+        f'用户需求:{question}\n\n'
+        '请输出一个图表配置 JSON,字段说明:\n'
+        '- type: 图表类型,取值之一 bar(柱)/bar_stack(堆叠柱)/bar_percent(百分比堆叠)/hbar(横向条)/'
+        'line(折线)/area(面积)/line_stack(堆叠面积)/pie(饼)/donut(环形)/rose(玫瑰)/scatter(散点)/'
+        'radar(雷达)/funnel(漏斗)/gauge(仪表盘)/kline(K 线/蜡烛图,行情)/'
+        'combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/'
+        'kpi(指标卡)/table(明细表)\n'
+        '- x: 类别/维度列名(kpi/table 可留空;kline 填时间列;heatmap 填 X 轴类别列;sankey 不用 x)\n'
+        '- ys: 度量数组,每项 {"field":"列名","agg":"sum|avg|count|max|min|none"},可多个;'
+        '若该列本身已是聚合结果(如查询里已写 SUM(x)/COUNT(*) 算好),agg 用 none 直接画,不要再二次聚合;'
+        'combo 里每个度量可加 "mark":"bar|line"(柱或线)与 "axis":"left|right"(左/右轴);'
+        'heatmap/boxplot/treemap/waterfall 只用第一个度量\n'
+        '- ohlc: 仅 kline 需要,四列映射 {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}(此时 ys 可省)\n'
+        '- link: 仅 sankey 需要,三列映射 {"source":"源节点列","target":"目标节点列","value":"流量值列"}(此时 x/ys 可省)\n'
+        '- series: 分组拆分列名(不需要则空字符串;heatmap 时它是 Y 轴类别列,必填)\n'
+        '- sort: {"by":"" 或 "__x__" 或某度量列名,"dir":"desc|asc"}\n'
+        '- topN: 整数,只取前 N(不限填 0)\n'
+        '- style: 可选,可含 {"title":"图表标题"}\n'
+        '选型建议:占比看 pie/donut;趋势随时间看 line;类别对比看 bar;单一汇总指标看 kpi;'
+        '股票/期货 OHLC 行情看 kline;两个量级差很大的指标同图对比看 combo(双轴);'
+        '累计增减/构成看 waterfall;两个维度交叉的热度看 heatmap;数值分布/离群看 boxplot;'
+        '层级占比看 treemap;节点间流向/转化看 sankey。\n'
+        '示例输出:\n'
+        '· 各城市销售额 Top10 柱状:{"type":"bar","x":"city","ys":[{"field":"amount","agg":"sum"}],'
+        '"sort":{"by":"amount","dir":"desc"},"topN":10,"style":{"title":"各城市销售额 Top10"}}\n'
+        '· 日线 K 线:{"type":"kline","x":"date","ohlc":{"o":"open","h":"high","l":"low","c":"close"},"style":{"title":"日K"}}\n'
+        '· 单值指标卡:{"type":"kpi","ys":[{"field":"max_price","agg":"none"}],"style":{"title":"最高价"}}\n'
+        '只用上面列出的真实列名。**只输出 JSON 本身,不要 markdown 代码块、不要任何解释文字。**'
+    )
+
+
+def _normalize_chart_cfg(cfg: Any) -> dict:
+    """清洗 LLM 产出的图表配置:类型白名单、ys 归一、sort/topN 兜底。字段合法性交前端 inferFields 再校。"""
+    if not isinstance(cfg, dict):
+        raise ServiceException(message='AI 生成的图表配置格式不正确,请换个说法重试')
+    if cfg.get('type') not in _CHART_TYPES:
+        cfg['type'] = 'bar'
+    ys = cfg.get('ys')
+    if isinstance(ys, (dict, str)):
+        ys = [ys]
+    if not isinstance(ys, list) or not ys:
+        ys = [{'field': cfg['y'], 'agg': cfg.get('agg')}] if cfg.get('y') else []
+    norm = []
+    for it in ys:
+        if isinstance(it, dict) and it.get('field'):
+            m = {'field': str(it['field']), 'agg': it.get('agg') if it.get('agg') in _CHART_AGGS else 'sum'}
+            if it.get('mark') in ('bar', 'line'):  # 双轴组合:该度量画柱还是线
+                m['mark'] = it['mark']
+            if it.get('axis') in ('left', 'right'):  # 双轴组合:该度量走左轴还是右轴
+                m['axis'] = it['axis']
+            if it.get('color'):  # 该度量单独配色
+                m['color'] = str(it['color'])
+            norm.append(m)
+        elif isinstance(it, str) and it.strip():  # LLM 常把 ys 直接写成列名字符串
+            norm.append({'field': it.strip(), 'agg': 'sum'})
+    cfg['ys'] = norm or [{'field': '', 'agg': 'sum'}]
+    cfg['x'] = str(cfg.get('x') or '')
+    cfg['series'] = str(cfg.get('series') or '')
+    s = cfg.get('sort') if isinstance(cfg.get('sort'), dict) else {}
+    cfg['sort'] = {'by': str(s.get('by') or ''), 'dir': 'asc' if s.get('dir') == 'asc' else 'desc'}
+    try:
+        cfg['topN'] = max(0, int(cfg.get('topN') or 0))
+    except (TypeError, ValueError):
+        cfg['topN'] = 0
+    if not isinstance(cfg.get('style'), dict):
+        cfg.pop('style', None)
+    # K 线:保留 OHLC 四列映射;非 kline 不带 ohlc
+    if cfg['type'] == 'kline':
+        o = cfg.get('ohlc') if isinstance(cfg.get('ohlc'), dict) else {}
+        cfg['ohlc'] = {k: str(o.get(k) or '') for k in ('o', 'h', 'l', 'c')}
+    else:
+        cfg.pop('ohlc', None)
+    # 桑基:保留 源/目标/值 三列映射;非 sankey 不带 link
+    if cfg['type'] == 'sankey':
+        lk = cfg.get('link') if isinstance(cfg.get('link'), dict) else {}
+        cfg['link'] = {k: str(lk.get(k) or '') for k in ('source', 'target', 'value')}
+    else:
+        cfg.pop('link', None)
+    cfg.pop('y', None)
+    cfg.pop('agg', None)
+    return cfg
+
+
+_CFG_SCHEMA_LINE = (
+    ' "cfg": {"type": 图表类型(bar/hbar/bar_stack/line/area/pie/donut/rose/scatter/radar/funnel/gauge/kline/'
+    'combo(双轴组合)/waterfall(瀑布)/heatmap(热力)/boxplot(箱线)/treemap(矩形树图)/sankey(桑基)/kpi),'
+    '"x": 维度列(heatmap=X轴类别;sankey 不用), "ys": [{"field": 度量列, "agg": "sum|avg|count|max|min|none"'
+    '(, combo 可加 "mark":"bar|line","axis":"left|right")}], '
+    '"series": 分组列或空串(heatmap=Y轴类别列), "sort": {"by":"","dir":"desc"}, "topN": 0, "style": {"title": 标题}'
+    ',(仅 kline)"ohlc": {"o":"开盘列","h":"最高列","l":"最低列","c":"收盘列"}'
+    ',(仅 sankey)"link": {"source":"源列","target":"目标列","value":"流量值列"}}}\n'
+)
+
+
+def _code_to_board_prompt(code: str, question: str, source_type: str = '', family: str = '') -> str:
+    """把 agent 的「取数+绘图」代码转成看板配置 {native, cfg} 的提示词。
+
+    native 形态随数据源族不同:SQL/ES/Mongo 是查询语句且可下推聚合;api 族(akshare/ccxt 等接口源)
+    是**接口函数调用** {"func","params"},返回固定结构表、不能下推聚合——分别给对应指引,否则接口源必转失败。
+    """
+    if family == 'api':  # akshare / ccxt 等接口源:native = 接口函数调用,不是查询语句
+        native_block = (
+            '{"native": <一次只读接口调用,形如 {"func":"接口函数名","params":{参数}}——'
+            '直接从代码里 handler.query(...) 的第一个入参**原样提取**(字符串函数名,或 {func,params} 字典);'
+            '不要改写成 SQL、不要杜撰函数名或参数>,\n'
+            + _CFG_SCHEMA_LINE
+            + f'该数据源是「{source_type or "akshare/ccxt"}」接口源,务必注意:\n'
+            '- native 必须是 {"func":..,"params":..} 形态(或纯函数名字符串),**照抄代码里的 handler.query 调用**,'
+            'params 原样复制,别改别编;\n'
+            '- 这类源返回**固定结构的表,无法把聚合下推到 native**——需要汇总/排序/取前 N 时一律用 cfg 完成:'
+            '聚合用 cfg.ys 的 agg(sum/avg/count/max/min),排序用 cfg.sort,取前 N 用 cfg.topN;'
+            '某列本身就是要直接画的原始值时 agg 用 none;\n'
+            '- 只读:此类源天然只读,无需改写;\n'
+            '- cfg 的列名必须是接口返回的真实列名(akshare 多为中文,如 日期/开盘/最高/最低/收盘/成交量/成交额/名称/最新价/涨跌幅)。\n'
+            '示例(akshare):\n'
+            '- 个股日 K:  native={"func":"stock_zh_a_hist","params":{"symbol":"600519","period":"daily","adjust":"qfq"}},'
+            ' cfg.type=kline, x="日期", ohlc={"o":"开盘","h":"最高","l":"最低","c":"收盘"}\n'
+            '- 实时行情按最新价 Top10:  native={"func":"stock_zh_a_spot_em","params":{}},'
+            ' cfg.type=hbar, x="名称", ys=[{"field":"最新价","agg":"none"}], sort={"by":"最新价","dir":"desc"}, topN=10\n'
+            '- 按行业汇总成交额:  native 取实时行情明细接口(不带聚合), cfg.x="行业", ys=[{"field":"成交额","agg":"sum"}]'
+            '(聚合放 cfg,别放 native)\n'
+        )
+    else:  # SQL / ES / Mongo:native 是查询语句,尽量把聚合下推
+        native_block = (
+            '{"native": <一条只读、单条、可独立重跑的查询,返回图表所需数据集;SQL 源用 SQL 字符串,'
+            'ES 用查询 DSL 对象,Mongo 用 pipeline 对象;尽量把聚合放进查询:GROUP BY / aggs / $group>,\n'
+            + _CFG_SCHEMA_LINE
+            + '要求:native 必须**只读**、不依赖代码里的 pandas 中间变量、能独立重跑;'
+            'cfg 里的列名必须是 native 结果的真实列名;若聚合已在查询里做,对应度量 agg 用 none。\n'
+            '【聚合务必下推到 native,别只靠 pandas】常见写法示例:\n'
+            '- SQL 分组求和:  native="SELECT city, SUM(amount) AS amount FROM t GROUP BY city ORDER BY amount DESC LIMIT 10",'
+            ' cfg.x=city, ys=[{"field":"amount","agg":"none"}]\n'
+            '- SQL 单指标:    native="SELECT MAX(price) AS max_price FROM t", cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
+            '- ES 桶+指标:    native={"index":"idx","body":{"size":0,"aggs":{"by_ind":{"terms":{"field":"industry.keyword","size":10},'
+            '"aggs":{"amt":{"sum":{"field":"amount"}}}}}}}(handler 会拍平成 by_ind/amt 两列),cfg.x=by_ind, ys=[{"field":"amt","agg":"none"}]\n'
+            '- ES 单指标:     native={"index":"idx","body":{"size":0,"aggs":{"max_price":{"max":{"field":"price"}}}}},'
+            ' cfg.type=kpi, ys=[{"field":"max_price","agg":"none"}]\n'
+            '- Mongo 分组:    native={"collection":"c","pipeline":[{"$group":{"_id":"$city","amount":{"$sum":"$amount"}}}]},'
+            ' cfg.x=_id, ys=[{"field":"amount","agg":"none"}]\n'
+            '- Top-N 明细(非聚合):SQL 用 ORDER BY+LIMIT;ES 用 {"body":{"sort":[{"amount":"desc"}],"size":10,"_source":[...]}}。\n'
+            '- K 线(行情):native 按时间升序取 明细(含 时间/开/高/低/收 列),'
+            'cfg.type=kline, x=时间列, ohlc={"o":"open","h":"high","l":"low","c":"close"}(ys 可省)\n'
+        )
+    return (
+        '你是数据看板转换器。下面是一段在数据源上「取数+绘图」的 Python 代码'
+        '(用 handler.query 取数,可能用 pandas 加工,用 pyecharts 画图)。请把它转换成可复用看板配置,输出 JSON:\n'
+        + native_block
+        + '**只输出 JSON 本身,不要解释、不要 markdown 围栏。**\n'
+        + f'原始需求:{question or "(未知)"}\n代码:\n{code}'
+    )
+
+
+class DataQueryService:
+    """数据查询/接口:基于模型 + 连接器。"""
+
+    @classmethod
+    async def _load(cls, db: AsyncSession, m_id: str) -> tuple[DataModel, Any]:
+        m = await DataModelDao.get_by_id(db, m_id)
+        if not m:
+            raise ServiceException(message='数据模型不存在')
+        ds = await DataSourceDao.get_by_code(db, m.datasource_code)
+        if not ds:
+            raise ServiceException(message='数据模型关联的数据源不存在')
+        return m, _handler_from_ds(ds)
+
+    @staticmethod
+    def _check_fields(m: DataModel, filters: list[dict] | None) -> None:
+        """字段白名单:filters 的 field 必须在模型已缓存字段里(防注入)。"""
+        if not filters or not m.fields:
+            return
+        allowed = {f.get('name') for f in m.fields}
+        bad = [r.get('field') for r in filters if r.get('field') not in allowed]
+        if bad:
+            raise ServiceException(message=f'非法字段: {bad}')
+
+    @classmethod
+    async def query(cls, db: AsyncSession, m_id: str, req: QueryReq) -> dict:
+        """数据查询(不分页):native 或 filter,查出多少返回多少。"""
+        m, handler = await cls._load(db, m_id)
+        if req.native is not None:
+            native = _apply_params(req.native, req.params)  # 看板变量 {{var}} 替换
+            try:
+                assert_readonly_sql(native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from None
+            with audit(access_type='query', datasource_code=m.datasource_code, object_name=m.object_name,
+                       statement=native, model_id=m.id, source_type=handler.name) as a:
+                records = await run_in_threadpool(handler.query, native, None, req.limit)
+                a.rows = len(records)
+        else:
+            cls._check_fields(m, req.filters)
+            if not handler.has(Capability.GEN_API):
+                raise ServiceException(message=f'{handler.name} 不支持条件查询,请用原生查询')
+            with audit(access_type='search', datasource_code=m.datasource_code, object_name=m.object_name,
+                       filters=req.filters, model_id=m.id, source_type=handler.name) as a:
+                res = await run_in_threadpool(handler.search, m.object_name, req.filters, 1, req.limit or 5000)
+                records = res['records']
+                a.rows = len(records)
+        return {'records': json_safe_rows(records), 'total': len(records)}
+
+    @classmethod
+    async def sample_query(cls, db: AsyncSession, m_id: str) -> dict:
+        """该模型的原生查询默认示例(前端预填,limit=100)。"""
+        m, handler = await cls._load(db, m_id)
+        return {'native': handler.sample_query(m.object_name or '', 100)}
+
+    @classmethod
+    async def ai_chart(cls, db: AsyncSession, m_id: str, question: str, columns: list[str]) -> dict:
+        """自然语言 + 数据列 → 复用系统 LLM 生成 EchartsBuilder 图表配置(cfg)。走库内兜底 LLM,数据不外发。
+
+        只需列名(前端由查询结果传入),字段合法性由前端 inferFields 二次校正;m_id 用于召回该源专属知识库。
+        """
+        if not (question or '').strip():
+            raise ServiceException(message='请描述你想要的图表')
+        cols = [str(c) for c in (columns or []) if c]
+        if not cols:
+            raise ServiceException(message='没有可用的数据列,请先执行查询')
+        m = await DataModelDao.get_by_id(db, m_id) if m_id else None
+        kb = await cls._kb_context(db, m, question) if m else ''
+        kb_block = f'参考该数据源的业务知识(理解字段口径,据此选合适的列):\n{kb}\n\n' if kb else ''
+        text = await _ai_complete(db, kb_block + _chart_cfg_prompt(cols, question))
+        try:
+            cfg = json.loads(_strip_fence(text))
+        except (json.JSONDecodeError, ValueError) as e:
+            raise ServiceException(message='AI 生成的图表配置不是合法 JSON,请换个说法重试') from e
+        return _normalize_chart_cfg(cfg)
+
+    @classmethod
+    async def prep_ask(cls, db: AsyncSession, m_id: str) -> dict:
+        """「AI 洞察」上下文:锁定该模型的 数据源编码 / 表名 / 列 / 业务说明,喂给 scoped_ask_stream。
+
+        列优先取 fields 缓存(introspect),空则实时 get_columns 兜底(种子直插/建模时空表的模型)。
+        """
+        m, handler = await cls._load(db, m_id)
+        fields = m.fields or []
+        columns = [f.get('name') for f in fields if isinstance(f, dict) and f.get('name')]
+        if not columns and m.object_name:
+            try:
+                cols = await run_in_threadpool(handler.get_columns, m.object_name)
+                columns = [c.name for c in cols]
+            except Exception:
+                columns = []
+        return {
+            'datasource_code': m.datasource_code,
+            'table': m.object_name or m.name,
+            'columns': columns,
+            'business': m.remark or '',
+        }
+
+    @classmethod
+    async def convert_code_to_board(cls, db: AsyncSession, datasource_code: str, code: str, question: str) -> dict:
+        """把 agent 的取数+绘图代码经 LLM 转成 {native(可重跑只读查询), cfg}。转出后跑一次校验,失败自动纠错重试。"""
+        if not (code or '').strip():
+            raise ServiceException(message='无取数代码可转换')
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+        base = _code_to_board_prompt(code, question, ds.source_type, getattr(handler, 'family', ''))
+        prompt, last_err = base, ''
+        for _ in range(cls._QUERY_MAX_TRIES):
+            text = await _ai_complete(db, prompt)
+            try:
+                obj = json.loads(_strip_fence(text))
+            except (json.JSONDecodeError, ValueError) as e:
+                last_err = f'输出不是合法 JSON:{short_err(e)}'
+                prompt = base + f'\n\n【纠错】{last_err},请只输出 {{"native":..,"cfg":..}} 的 JSON。'
+                continue
+            native = obj.get('native')
+            cfg = _normalize_chart_cfg(obj.get('cfg') or {})
+            if isinstance(native, str):
+                stmt = native.strip().rstrip(';')
+                if not stmt.lower().lstrip().startswith(('select', 'with')):
+                    last_err = f'native 不是只读查询:{stmt[:120]}'
+                    prompt = base + f'\n\n【纠错】{last_err},请重出只读单查询。'
+                    continue
+                try:
+                    assert_readonly_sql(stmt, handler.family)
+                except ValueError as e:
+                    last_err = str(e)
+                    prompt = base + f'\n\n【纠错】native 被只读护栏拦截:{last_err},请重出只读查询。'
+                    continue
+            elif isinstance(native, dict):
+                stmt = native
+            else:
+                last_err = '缺少 native'
+                prompt = base + '\n\n【纠错】缺少 native 字段,请补全后重出 JSON。'
+                continue
+            try:
+                await run_in_threadpool(handler.query, stmt, None, 50)  # 校验能跑通
+            except Exception as e:
+                last_err = short_err(e)
+                prompt = base + f'\n\n【纠错】转换出的查询执行失败:{last_err}\n请修正 native 后重出 JSON。'
+                continue
+            return {'native': stmt, 'cfg': cfg}
+        raise ServiceException(message=f'代码转看板失败(已自动纠错 {cls._QUERY_MAX_TRIES} 次):{last_err}')
+
+    @classmethod
+    async def prep_code_to_board(
+        cls, db: AsyncSession, datasource_code: str, code: str, question: str, hint: str = ''
+    ) -> tuple[dict, str]:
+        """流式代码转看板的准备:校验源存在,返回 (AI 模型 cfg, prompt)。
+
+        流式版不在服务端跑校验/纠错(会阻塞、易超时);LLM 产出的 {native, cfg} 由前端 preview_native
+        实跑取数来验证并画图,失败让用户「重新生成」——把慢过程可视化,而不是一个可能超时的阻塞请求。
+        """
+        if not (code or '').strip():
+            raise ServiceException(message='无取数代码可转换')
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        family = ''
+        try:
+            family = getattr(_handler_from_ds(ds), 'family', '')  # 仅取 family 分派 prompt,不建连接
+        except Exception:
+            pass
+        cfg = await _ai_resolve_cfg(db)
+        prompt = _code_to_board_prompt(code, question, ds.source_type, family)
+        if (hint or '').strip():  # 用户在转换对话框手输的纠偏提示,追加到末尾(权重高,放最后)
+            prompt += f'\n\n【用户补充要求,务必优先遵循】{hint.strip()}'
+        return cfg, prompt
+
+    @classmethod
+    async def prep_plot_code(cls, db: AsyncSession, datasource_code: str, question: str, current_code: str = '') -> tuple[dict, str]:
+        """代码看板 AI 辅助:自然语言(+可选现有代码)→ 取数+pyecharts 绘图代码(流式)。返回 (模型cfg, prompt)。"""
+        if not (question or '').strip():
+            raise ServiceException(message='请描述要画的图')
+        ds = await DataSourceDao.get_by_code(db, datasource_code) if datasource_code else None
+        prompt = ez_prompts.build_plot_code_prompt(
+            datasource_code, ds.source_type if ds else '', getattr(ds, 'family', '') if ds else '',
+            question, current_code or '',
+        )
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    async def run_code_chart_by_id(cls, db: AsyncSession, did: str) -> dict:
+        """按看板 id 渲染代码看板:后端查该看板画布里的代码组件 → 沙箱跑 → {html}。
+        渲染态(预览/纯图页/刷新)用这条,代码留在服务端不随请求来回传,客户端也无法改代码。"""
+        if not (did or '').strip():
+            raise ServiceException(message='缺少看板 id')
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, did)
+        content = (canvas.content if canvas else None) or {}
+        comps = content.get('components') or []
+        code_comp = next((c for c in comps if isinstance(c, dict) and c.get('type') == 'code'), None)
+        if not code_comp:
+            raise ServiceException(message='该看板无代码组件')
+        inl = code_comp.get('inline') or {}
+        return await cls.run_code_chart(db, inl.get('datasourceCode', ''), inl.get('code', ''))
+
+    @classmethod
+    async def run_code_chart(cls, db: AsyncSession, datasource_code: str, code: str) -> dict:
+        """代码看板渲染:在沙箱直接跑存的取数+绘图代码,产出 pyecharts HTML(不经 LLM convert_code_to_board 转换)。
+        代码需把图表 HTML 赋给 result,如 `result = {"type":"html","value": 图表对象.render_embed()}`。
+        只读/出网护栏由沙箱 handler 内部保证(与 run_datasource_query 同)。"""
+        from module_data import sandbox_client
+
+        if not (code or '').strip():
+            raise ServiceException(message='无代码可执行')
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        datasource = {'source_type': ds.source_type, 'config': ds.config or {}, 'secrets': _decrypt_secrets(ds)}
+        try:
+            res = sandbox_client.run_python_data(code, datasource, 'result')
+        except Exception as e:
+            raise ServiceException(message=f'沙箱执行失败:{short_err(e)}')
+        if not res.get('success'):
+            raise ServiceException(message=f'代码执行失败:{res.get("error") or "未知错误"}')
+        result = res.get('result')
+        html = None
+        if isinstance(result, dict) and result.get('type') == 'html':
+            html = result.get('value')
+        elif isinstance(result, str) and '<' in result:
+            html = result
+        if not html:
+            raise ServiceException(message='代码未产出 HTML 图表(需 result={"type":"html","value": 图表.render_embed()})')
+        return {'html': str(html)}
+
+    @classmethod
+    async def preview_native(
+        cls, db: AsyncSession, datasource_code: str, native: Any, limit: int = 500, params: dict | None = None
+    ) -> dict:
+        """按 数据源编码 + native 只读取数(转看板预览/校验/公开分享用)。SQL 文本走只读护栏,ES/Mongo(dict)天然只读。"""
+        if native is None or (isinstance(native, str) and not native.strip()):
+            raise ServiceException(message='缺少查询语句')
+        native = _apply_params(native, params)  # 看板变量 {{var}} 替换
+        ds = await DataSourceDao.get_by_code(db, datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+        if isinstance(native, str):
+            try:
+                assert_readonly_sql(native, handler.family)
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from None
+        records = await run_in_threadpool(handler.query, native, None, limit)
+        return {'records': json_safe_rows(records), 'total': len(records)}
+
+    @classmethod
+    async def _kb_context(cls, db: AsyncSession, m: Any, question: str) -> str:
+        """取数前从该数据源的专属知识库召回业务知识(表义务/字段口径/QA),注入 prompt。无则空。"""
+        try:
+            from common.context import RequestContext
+            from module_rag.agent_tools import search_knowledge_base
+
+            ds = await DataSourceDao.get_by_code(db, m.datasource_code)
+            if not ds:
+                return ''
+            tenant = RequestContext.get_effective_tenant_id()
+            txt = await run_in_threadpool(search_knowledge_base, question, source_id=ds.id, tenant_id=tenant, top_k=5)
+            return '' if (not txt or txt.startswith(('未找到', '未检索', '未指定'))) else txt
+        except Exception:
+            return ''
+
+    # AI 取数自纠错:首次 + (N-1) 次纠错。执行报错→喂回错误+上次查询→让 LLM 修正,直到跑通或用尽。
+    _QUERY_MAX_TRIES = 3
+
+    @staticmethod
+    def _is_es(handler: Any) -> bool:
+        return getattr(handler, 'family', '') == 'search' or getattr(handler, 'name', '') == 'elasticsearch'
+
+    @classmethod
+    def _query_prompt(cls, handler: Any, object_name: str, cols: str, kb_block: str, question: str) -> str:
+        """按源类型构造 AI 取数提示词(SQL 出只读 SELECT;ES 出 DSL JSON)。ai_query / prep_ai_query 共用。"""
+        if cls._is_es(handler):
+            fmt = (
+                f'返回 Elasticsearch 查询 DSL 的 JSON,形如 {{"index":"{object_name}","body":{{...}}}};'
+                '只输出 JSON,不要解释、不要 markdown 围栏。\n'
+                '规则:\n'
+                '① 需要汇总/分组/求和/计数/最值/前 N 排名时,用 aggs 把聚合下推,并设 body.size=0(只要聚合、不要原始命中);'
+                'handler 会把聚合桶拍平成表——**桶聚合名与指标名即为返回的列名**。\n'
+                '② 文本字段(type=text)做 terms 分组/精确过滤(term)/排序时**必须**用其 `字段.keyword` 子字段'
+                '(上面字段清单里已列出 `.keyword` 的直接用);数值/日期字段用本名。\n'
+                '③ 只取明细(不聚合)时:query 过滤 +(可选)sort + size 取前 N。范围/日期用 range,精确值用 term。\n'
+                '示例(body 部分;外层务必包成 {"index":"<上面的真实索引>","body":<body>}):\n'
+                '· 分组求和取前10:{"size":0,"aggs":{"by_grp":{"terms":{"field":"行业.keyword","size":10},'
+                '"aggs":{"amt":{"sum":{"field":"成交额"}}}}}} → 得列 by_grp/amt\n'
+                '· 单值 KPI(最大值):{"size":0,"aggs":{"max_v":{"max":{"field":"price"}}}} → 得列 max_v\n'
+                '· 时间序列(按日均值):{"size":0,"aggs":{"by_day":{"date_histogram":{"field":"date",'
+                '"calendar_interval":"day"},"aggs":{"v":{"avg":{"field":"close"}}}}}} → 得列 by_day/v\n'
+                '· 明细前 N:{"query":{"range":{"date":{"gte":"2024-01-01"}}},"sort":[{"date":"desc"}],"size":20}\n'
+                '· 取达到最值/最新的那一行(argmax):**用明细 sort+size:1,不要用 top_hits/aggs**——'
+                '{"query":{"match_all":{}},"sort":[{"pe":"desc"}],"size":1}(PE 最高的一行);'
+                '{"query":{"match_all":{}},"sort":[{"date":"desc"}],"size":1}(最新一行)\n'
+            )
+        else:
+            fmt = (
+                '写一条**只读 SELECT** 查询(单条语句、不要注释、不要 markdown 围栏、不要修改数据);只输出 SQL 本身。\n'
+                '示例:\n'
+                '· 分组求和取前10:SELECT city, SUM(amount) AS amount FROM t GROUP BY city ORDER BY amount DESC LIMIT 10\n'
+                '· 单值 KPI:SELECT MAX(price) AS max_price FROM t\n'
+                "· 明细过滤:SELECT * FROM t WHERE status='PAID' ORDER BY created_at DESC LIMIT 100"
+            )
+        return (
+            kb_block + f'你是 {handler.name} 数据查询专家。表/索引:`{object_name}`,字段:\n{cols}\n\n'
+            f'请根据下面的自然语言需求,{fmt}\n需求:{question}'
+        )
+
+    @classmethod
+    def _prep_statement(cls, text: str, handler: Any) -> tuple[Any, str, str | None]:
+        """LLM 产出文本 → 可执行语句 + 展示串 + 错误。SQL 校只读;ES 校 JSON。返回 (stmt, display, err)。"""
+        raw = _strip_fence(text).strip()
+        if cls._is_es(handler):
+            try:
+                dsl = json.loads(raw)
+            except (json.JSONDecodeError, ValueError) as e:
+                return None, raw, f'不是合法的 ES DSL JSON:{short_err(e)}'
+            return dsl, raw, None
+        sql = raw.rstrip(';')
+        if not sql.lower().lstrip().startswith(('select', 'with')):
+            return None, sql, '不是只读 SELECT/WITH 查询(疑似含写操作或非查询语句)'
+        try:
+            assert_readonly_sql(sql, handler.family)
+        except ValueError as e:
+            return None, sql, str(e)
+        return sql, sql, None
+
+    @staticmethod
+    def _retry_prompt(base: str, prev: str, err: str) -> str:
+        """把上次失败的查询 + 错误信息喂回,让 LLM 修正(Wren AI 式自纠错)。"""
+        return (
+            base + '\n\n【纠错】上一次生成的查询执行失败,请修正后重试。\n'
+            f'上次查询:\n{prev}\n\n错误信息:\n{err}\n\n'
+            '请仅输出修正后的查询本身,不要解释、不要 markdown 围栏。'
+        )
+
+    @classmethod
+    async def ai_query(cls, db: AsyncSession, m_id: str, question: str, limit: int = 200) -> dict:
+        """AI 取数:NL + 表结构(+专属知识库)→ 生成只读原生查询 → 执行,失败自动纠错重试。
+
+        返回附带 attempts(总尝试次数)/corrected(是否经过纠错)/trace(失败尝试的查询+错误),便于前端提示。
+        """
+        m, handler = await cls._load(db, m_id)
+        cols = '\n'.join(f'- {f["name"]} ({f.get("type", "")})' for f in (m.fields or []))
+        kb = await cls._kb_context(db, m, question)
+        kb_block = f'参考该数据源的业务知识(理解字段口径/表义务,可据此选字段写条件):\n{kb}\n\n' if kb else ''
+        base = cls._query_prompt(handler, m.object_name, cols, kb_block, question)
+
+        prompt = base
+        last_err = ''
+        trace: list[dict] = []
+        for attempt in range(1, cls._QUERY_MAX_TRIES + 1):
+            text = await _ai_complete(db, prompt)
+            stmt, display, gen_err = cls._prep_statement(text, handler)
+            if gen_err is None:
+                try:
+                    with audit(access_type='query', datasource_code=m.datasource_code, object_name=m.object_name,
+                               statement=display, model_id=m.id, source_type=handler.name) as a:
+                        records = await run_in_threadpool(handler.query, stmt, None, limit)
+                        a.rows = len(records)
+                    return {
+                        'query': display,
+                        'records': json_safe_rows(records),
+                        'total': len(records),
+                        'attempts': attempt,
+                        'corrected': attempt > 1,
+                        'trace': trace,  # 之前失败的尝试(空=一次成功)
+                    }
+                except Exception as e:
+                    last_err = short_err(e)
+            else:
+                last_err = gen_err
+            trace.append({'attempt': attempt, 'query': display, 'error': last_err})
+            prompt = cls._retry_prompt(base, display, last_err)
+        raise ServiceException(
+            message=f'AI 取数失败(已自动纠错 {cls._QUERY_MAX_TRIES} 次仍未跑通):{last_err}'
+        )
+
+    @classmethod
+    async def prep_ai_query(cls, db: AsyncSession, m_id: str, question: str) -> tuple[dict, str]:
+        """流式 AI 取数:解析模型配置 + 按源类型构造提示词(SQL 出 SELECT;ES 出 DSL JSON)。"""
+        m, handler = await cls._load(db, m_id)
+        cols = '\n'.join(f'- {f["name"]} ({f.get("type", "")})' for f in (m.fields or []))
+        kb = await cls._kb_context(db, m, question)
+        kb_block = f'参考该数据源的业务知识(理解字段口径/表义务):\n{kb}\n\n' if kb else ''
+        prompt = cls._query_prompt(handler, m.object_name, cols, kb_block, question)
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    async def search(cls, db: AsyncSession, m_id: str, req: SearchReq) -> dict:
+        """数据接口(分页)。"""
+        m, handler = await cls._load(db, m_id)
+        if not handler.has(Capability.GEN_API):
+            raise ServiceException(message=f'{handler.name} 不支持分页接口')
+        cls._check_fields(m, req.filters)
+        with audit(access_type='search', datasource_code=m.datasource_code, object_name=m.object_name,
+                   filters=req.filters, model_id=m.id, source_type=handler.name) as a:
+            res = await run_in_threadpool(handler.search, m.object_name, req.filters, req.page, req.pagesize)
+            a.rows = len(res['records']) if isinstance(res, dict) and 'records' in res else None
+        if isinstance(res, dict) and 'records' in res:
+            res['records'] = json_safe_rows(res['records'])
+        return res
+
+
+class EtlService:
+    """ETL 调试:原生查询抽取预览 / 测试写入 / AI 生成查询与转换。"""
+
+    @classmethod
+    async def preview(cls, db: AsyncSession, req: Any) -> dict:
+        """批量源按原生查询取样本;流式源抽 1 条事件;代码取数走沙箱跑 result。均支持逐行转换。"""
+        if (getattr(req, 'mode', None) or '') == 'code':
+            return await cls._preview_code(db, req)
+        ds = await DataSourceDao.get_by_code(db, req.datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+
+        try:
+            if handler.has(Capability.READ):  # 批量源:原生查询
+                native = req.native
+                if not native or (isinstance(native, str) and not native.strip()):
+                    raise ServiceException(message='请填写原生查询')
+                try:
+                    assert_readonly_sql(native, handler.family)  # 抽取预览同样只读(仅 SQL 文本族)
+                except ValueError as e:
+                    raise ServiceException(message=str(e)) from None
+                limit = min(int(req.limit or 50), 200)
+                with audit(access_type='preview', datasource_code=req.datasource_code,
+                           object_name=getattr(req, 'object_name', None), statement=native,
+                           source_type=handler.name) as a:
+                    rows = await run_in_threadpool(handler.query, native, None, limit)
+                    a.rows = len(rows)
+            elif handler.has(Capability.STREAM):  # 流式源:有界抽 1 条
+                stmt = stream_statement(req.object_name)
+                with audit(access_type='preview', datasource_code=req.datasource_code,
+                           object_name=getattr(req, 'object_name', None), statement=str(stmt),
+                           source_type=handler.name) as a:
+                    rows = await run_in_threadpool(handler.query, stmt, None, 1)
+                    a.rows = len(rows)
+            else:
+                raise ServiceException(message=f'{handler.name} 不支持预览抽取')
+        except ServiceException:
+            raise
+        except Exception as e:
+            raise ServiceException(message=f'抽取失败:{short_err(e)}') from None
+
+        transformed = None
+        transform_log = ''
+        if (req.transform_code or '').strip():
+            transformed, transform_log = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
+        cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
+        return {
+            'records': json_safe_rows(rows),
+            'transformed': json_safe_rows(transformed),
+            'columns': cols,
+            'total': len(rows),
+            'transformLog': transform_log,
+        }
+
+    @classmethod
+    async def _preview_code(cls, db: AsyncSession, req: Any) -> dict:
+        """代码取数预览:在沙箱跑用户代码产出 result(list[dict]),取样本。
+
+        正式任务在 worker 跑(可访问任意外网);预览在沙箱(出网受白名单约束、隔离),用于安全调试。
+        """
+        from module_data import sandbox_client
+
+        code = (req.code or '').strip()
+        if not code:
+            raise ServiceException(message='请填写取数代码(把结果赋值给 result)')
+        if not sandbox_client.enabled():
+            raise ServiceException(message='沙箱未启用,无法预览代码取数(保存后正式任务仍可在 worker 运行)')
+        # 预解密所选数据源(沙箱无凭据,连接随请求注入,仅限所选源)
+        dsmap: dict[str, dict] = {}
+        for c in req.datasource_codes or []:
+            ds = await DataSourceDao.get_by_code(db, c)
+            if not ds:
+                raise ServiceException(message=f'数据源不存在: {c}')
+            dsmap[c] = {'source_type': ds.source_type, 'config': ds.config or {}, 'secrets': _decrypt_secrets(ds)}
+        # 代码取数/爬虫预览较慢,沙箱超时放到 300s(与前端一致)
+        res = await run_in_threadpool(sandbox_client.run_python_extract, code, dsmap, 'result', 300)
+        if not res.get('success'):
+            raise ServiceException(message=f'代码取数失败:{short_err(res.get("error") or "未知错误")}')
+        rows = res.get('result')
+        if isinstance(rows, dict) and 'value' in rows:  # 沙箱把 DataFrame 归一成 {type,value}
+            rows = rows.get('value')
+        if not isinstance(rows, list):
+            raise ServiceException(message='代码未产出 list[dict]:请把结果赋值给变量 result')
+        rows = rows[: min(int(req.limit or 50), 200)]
+        transformed = None
+        transform_log = res.get('stdout') or ''
+        if (req.transform_code or '').strip():
+            transformed, tlog = await run_in_threadpool(cls._apply_transform, req.transform_code, rows)
+            transform_log = (transform_log + '\n' + tlog).strip() if tlog else transform_log
+        cols = list((transformed or rows)[0].keys()) if (transformed or rows) else []
+        return {
+            'records': json_safe_rows(rows),
+            'transformed': json_safe_rows(transformed),
+            'columns': cols,
+            'total': len(rows),
+            'transformLog': transform_log,
+        }
+
+    @classmethod
+    async def test_load(cls, db: AsyncSession, req: Any) -> dict:
+        """把预览样本写入目标,验证装载配置(小批量真实写入)。"""
+        ds = await DataSourceDao.get_by_code(db, req.datasource_code)
+        if not ds:
+            raise ServiceException(message='目标数据源不存在')
+        handler = _handler_from_ds(ds)
+        if not handler.has(Capability.WRITE):
+            raise ServiceException(message=f'{handler.name} 不支持写入')
+        if not req.records:
+            raise ServiceException(message='没有可写入的样本,请先预览抽取数据')
+
+        mode = req.mode or 'append'
+        try:  # 门禁:所选写入模式须被该源支持(避免选了 replace/merge 却被静默当 append)
+            handler.check_write_mode(mode)
+        except ValueError as e:
+            raise ServiceException(message=str(e)) from None
+
+        fmt = getattr(req, 'format', None) or 'csv'
+        id_field = getattr(req, 'id_field', None)
+        to_file = is_file_target(ds.family)
+
+        def _write() -> Any:
+            if to_file:  # 对象/文件存储:序列化为整对象写入 key=table
+                return handler.write(serialize_records(req.records, fmt), req.table, mode=mode)
+            return handler.write(
+                req.records,
+                req.table,
+                mode=mode,
+                dataset=req.dataset or 'public',
+                pipeline_name=f'etl_test_{req.table}',
+                id_field=id_field,
+            )
+
+        try:
+            await run_in_threadpool(_write)
+        except Exception as e:
+            raise ServiceException(message=f'写入失败:{short_err(e)}') from None
+        return {
+            'written': len(req.records),
+            'table': req.table,
+            'dataset': req.dataset or 'public',
+            'target': 'file' if to_file else 'table',
+        }
+
+    @classmethod
+    async def ai_query(cls, db: AsyncSession, req: Any) -> dict:
+        """AI 生成原生查询:NL + 源表结构 → 只读查询。生成后按源族轻量校验,不合法把错误喂回重出(≤3 次)。"""
+        ds = await DataSourceDao.get_by_code(db, req.datasource_code)
+        if not ds:
+            raise ServiceException(message='源数据源不存在')
+        handler = _handler_from_ds(ds)
+        family = getattr(handler, 'family', '')
+        base = await run_in_threadpool(ez_prompts.build_query_prompt, handler, req.object_names, req.question)
+        prompt, last_err = base, ''
+        for _ in range(3):
+            try:
+                native = (await _ai_complete(db, prompt)).rstrip(';')
+            except ServiceException:
+                raise
+            except Exception as e:
+                raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
+            last_err = cls._validate_native(native, family)
+            if last_err is None:
+                return {'native': native}
+            prompt = base + f'\n\n【纠错】上次生成不合法:{last_err}\n上次输出:\n{native}\n请修正后只输出查询本身。'
+        raise ServiceException(message=f'AI 生成的查询多次校验不通过:{last_err}')
+
+    @staticmethod
+    def _validate_native(native: str, family: str) -> str | None:
+        """轻量校验生成的原生查询:SQL 族须只读 SELECT/WITH;其余(api/ES/Mongo)须合法 JSON。合法返回 None。"""
+        s = (native or '').strip()
+        if not s:
+            return '空结果'
+        if family in ('rdbms', 'timeseries'):  # 与 ez_prompts._SQL_FAMILIES 一致
+            if not s.lower().lstrip().startswith(('select', 'with')):
+                return '不是只读 SELECT/WITH 查询(疑似含写操作或非查询语句)'
+            try:
+                assert_readonly_sql(s, family)
+            except ValueError as e:
+                return str(e)
+            return None
+        try:
+            json.loads(s)
+        except (json.JSONDecodeError, ValueError) as e:
+            return f'不是合法 JSON:{short_err(e)}'
+        return None
+
+    @classmethod
+    async def prep_query(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
+        """流式/一次性生成共用:解析模型配置 + 构造查询提示词。"""
+        ds = await DataSourceDao.get_by_code(db, req.datasource_code)
+        if not ds:
+            raise ServiceException(message='源数据源不存在')
+        handler = _handler_from_ds(ds)
+        prompt = await run_in_threadpool(ez_prompts.build_query_prompt, handler, req.object_names, req.question)
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    async def ai_transform(cls, db: AsyncSession, req: Any) -> dict:
+        """AI 生成逐行转换函数:NL + 字段 → transform(row)。生成后 py_compile 校验,失败喂回重出(≤3 次)。"""
+        base = ez_prompts.build_transform_prompt(req.columns, req.question)
+        prompt, last_err = base, ''
+        for _ in range(3):
+            try:
+                code = await _ai_complete(db, prompt)
+            except ServiceException:
+                raise
+            except Exception as e:
+                raise ServiceException(message=f'AI 生成失败:{short_err(e)}') from None
+            last_err = cls._validate_transform(code)
+            if last_err is None:
+                return {'code': code}
+            prompt = base + f'\n\n【纠错】上次代码有问题:{last_err}\n请修正后只输出函数代码本身。'
+        raise ServiceException(message=f'AI 生成的转换函数多次校验不通过:{last_err}')
+
+    @staticmethod
+    def _validate_transform(code: str) -> str | None:
+        """校验逐行转换函数:须含 def transform 且能编译。合法返回 None。"""
+        c = code or ''
+        if 'def transform' not in c:
+            return '缺少 def transform(row) 函数定义'
+        try:
+            compile(c, '<etl-transform>', 'exec')
+        except SyntaxError as e:
+            return f'语法错误:{short_err(e)}'
+        return None
+
+    @classmethod
+    async def prep_transform(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
+        """流式/一次性生成共用:解析模型配置 + 构造转换提示词(委托 ezdata.prompts)。"""
+        prompt = ez_prompts.build_transform_prompt(req.columns, req.question)
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @classmethod
+    async def prep_extract_code(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
+        """AI 生成取数代码(爬虫/任意取数):自然语言 → 产出 result(list[dict])的 Python(提示词委托 ezdata.prompts)。"""
+        prompt = ez_prompts.build_extract_code_prompt(getattr(req, 'datasource_codes', None), req.question)
+        cfg = await _ai_resolve_cfg(db)
+        return cfg, prompt
+
+    @staticmethod
+    def _apply_transform(code: str, rows: list[dict]) -> tuple[list[dict], str]:
+        """逐行执行 transform(row)->row,返回 (转换后列表, 日志)。
+
+        沙箱开启(SANDBOX_ENABLED)时把「数据行 + 代码」发给独立沙箱容器执行(不传任何凭据),
+        日志随响应回传;沙箱未开启时本地 exec 兜底(仅可信/单机调试)。
+        """
+        from module_data import sandbox_client
+
+        if sandbox_client.enabled():
+            res = sandbox_client.transform_rows(code, rows)
+            if not res.get('success'):
+                raise ServiceException(message=f'转换执行失败:{res.get("error") or "未知错误"}')
+            return res.get('transformed') or [], res.get('output') or ''
+
+        # 本地兜底:沙箱未启用
+        ns: dict[str, Any] = {}
+        exec(compile(code, '<etl-transform>', 'exec'), ns)
+        fn = ns.get('transform')
+        if not callable(fn):
+            raise ServiceException(message='转换代码必须定义 transform(row) 函数')
+        out: list[dict] = []
+        for r in rows:
+            try:
+                out.append(fn(dict(r)))
+            except Exception as e:
+                out.append({'_transform_error': str(e), **r})
+        return out, ''
+
+
+class OpenDataService:
+    """公开数据接口(免登录,apikey 校验 + 查询串筛选 + 分页)。"""
+
+    @classmethod
+    async def public_query(cls, db: AsyncSession, model_code: str, params: dict) -> dict:
+        from sqlalchemy import select
+
+        from common.context import RequestContext
+        from ezdata.utils.query import parse_query_params
+        from module_apitoken.service.api_token_service import ApiTokenService
+        from module_data.entity.do.data_do import DataModel as DataModelDO
+
+        apikey = params.get('apikey') or params.get('api_key')
+        tk = await ApiTokenService.validate(db, apikey, 'data_api', model_code)
+        # 对外接口无登录上下文:据 token 绑定的租户建立租户上下文,后续模型/数据源查询被租户隔离
+        if tk.tenant_id is None:
+            raise ServiceException(message='apikey 未绑定租户,禁止访问')
+        RequestContext.set_current_tenant_id(tk.tenant_id)
+
+        m = (await db.execute(select(DataModelDO).where(DataModelDO.code == model_code))).scalars().first()
+        if not m:
+            raise ServiceException(message='数据模型不存在')
+        ds = await DataSourceDao.get_by_code(db, m.datasource_code)
+        if not ds:
+            raise ServiceException(message='数据源不存在')
+        handler = _handler_from_ds(ds)
+        if not handler.has(Capability.GEN_API):
+            raise ServiceException(message=f'{handler.name} 不支持数据接口')
+
+        filters = parse_query_params(params)
+        page = int(params.get('page', 1))
+        pagesize = min(int(params.get('pagesize', 20)), 200)  # 对外强制上限
+        with audit(access_type='api', datasource_code=m.datasource_code, object_name=m.object_name,
+                   filters=filters, model_id=m.id, source_type=handler.name, source='api') as a:
+            res = await run_in_threadpool(handler.search, m.object_name, filters, page, pagesize)
+            a.rows = len(res['records']) if isinstance(res, dict) and 'records' in res else None
+        return res
+
+    @classmethod
+    async def public_board(cls, db: AsyncSession, token: str) -> dict:
+        """匿名分享单图看板:据 share_token 出图(免登录)。
+
+        token(不可猜)即授权:定位唯一看板,只跑其自己的 native,故全程 tenant_bypass(无登录上下文,
+        且租户过滤会拦 HTTP 空租户)。只暴露该图数据,不会越租户。存储已统一到 data_dashboard(dash_type='chart')。
+        """
+        from common.context import tenant_bypass
+
+        if not (token or '').strip():
+            raise ServiceException(message='缺少分享令牌')
+        with tenant_bypass():
+            base = await DashboardDao.get_by_token(db, token)
+            if not base or not base.share_token:
+                raise ServiceException(message='分享不存在或已关闭')
+            canvas = await DashboardCanvasDao.get_by_dashboard(db, base.id)
+            content = (canvas.content if canvas else None) or {}
+            comps = content.get('components') or []
+            inline = (comps[0].get('inline') if comps and isinstance(comps[0], dict) else None) or {}
+            cfg = inline.get('chartSpec')
+            native = inline.get('native')
+            model_id = inline.get('modelId') or base.model_id
+            if not (isinstance(cfg, dict) and cfg.get('type')):
+                raise ServiceException(message='该看板无图表配置')
+            if native is None or not model_id:
+                raise ServiceException(message='该看板无有效查询')
+            req = QueryReq(native=native, params=_board_param_values(content.get('filters') or []), limit=5000)
+            data = await DataQueryService.query(db, model_id, req)
+            return {
+                'name': base.name, 'chartSpec': cfg, 'rows': data['records'],
+                'refreshInterval': base.refresh_interval or 0,
+            }
+
+
+class AnalysisTemplateService:
+    """单图看板(保存/复用「取数 + 图表配置」)。
+
+    存储已统一到 `data_dashboard`(dash_type='chart')+ `data_dashboard_canvas`;对外仍返回 `AnalysisTemplateVo`、
+    接口路径不变,前端与 AI「存为看板」无需改动。单图 = 一个 chart 组件的画布,变量=画布 filters。
+    """
+
+    @staticmethod
+    def _content_of(vo: AnalysisTemplateVo) -> dict:
+        """AnalysisTemplateVo → 画布 content(单图=一个 chart 组件 + filters=变量定义)。"""
+        native = (vo.query or {}).get('native') if isinstance(vo.query, dict) else None
+        return {
+            'canvas': {'mode': 'single'},
+            'components': [{
+                'id': 'c1', 'type': 'chart',
+                'inline': {'modelId': vo.model_id, 'native': native, 'chartSpec': vo.chart_spec},
+            }],
+            'filters': vo.params or [],
+        }
+
+    @staticmethod
+    def _to_vo(base: Any, canvas: Any) -> AnalysisTemplateVo:
+        """(base + canvas) → AnalysisTemplateVo(还原单图看板视图)。"""
+        content = (canvas.content if canvas else None) or {}
+        comps = content.get('components') or []
+        inline = (comps[0].get('inline') if comps and isinstance(comps[0], dict) else None) or {}
+        return AnalysisTemplateVo(
+            id=base.id, name=base.name, model_id=base.model_id, model_name=base.model_name,
+            query={'type': 'native', 'native': inline.get('native')},
+            chart_spec=inline.get('chartSpec'),
+            params=content.get('filters') or [],
+            refresh_interval=base.refresh_interval or 0,
+            share_token=base.share_token,
+            remark=base.remark, create_time=base.create_time, update_time=base.update_time,
+        )
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, model_id: str | None = None) -> list[AnalysisTemplateVo]:
+        bases = await DashboardDao.get_list(db, dash_type='chart', model_id=model_id)
+        canvases = await DashboardCanvasDao.list_by_dashboards(db, [b.id for b in bases])
+        return [cls._to_vo(b, canvases.get(b.id)) for b in bases]
+
+    @classmethod
+    async def get(cls, db: AsyncSession, tid: str) -> AnalysisTemplateVo:
+        """按 id 取单个看板(独立预览页用)。"""
+        base = await DashboardDao.get_by_id(db, tid)
+        if not base:
+            raise ServiceException(message='看板不存在')
+        return cls._to_vo(base, await DashboardCanvasDao.get_by_dashboard(db, tid))
+
+    @classmethod
+    async def gen_share(cls, db: AsyncSession, tid: str, operator: str) -> str:
+        """开启/重置匿名分享:生成不可猜 token 存到看板,返回 token。"""
+        import secrets
+
+        if not await DashboardDao.get_by_id(db, tid):
+            raise ServiceException(message='看板不存在')
+        token = 'bd_' + secrets.token_urlsafe(24)
+        await DashboardDao.edit(db, tid, {'share_token': token, 'update_by': operator})
+        await db.commit()
+        return token
+
+    @classmethod
+    async def revoke_share(cls, db: AsyncSession, tid: str, operator: str) -> None:
+        """关闭匿名分享:清空 token(旧链接立即失效)。"""
+        if not await DashboardDao.get_by_id(db, tid):
+            raise ServiceException(message='看板不存在')
+        await DashboardDao.edit(db, tid, {'share_token': None, 'update_by': operator})
+        await db.commit()
+
+    @classmethod
+    async def save(cls, db: AsyncSession, vo: AnalysisTemplateVo, operator: str) -> str:
+        if not (vo.name or '').strip():
+            raise ServiceException(message='请填写模板名称')
+        base_data = {
+            'name': vo.name, 'dash_type': 'chart',
+            'model_id': vo.model_id, 'model_name': vo.model_name,
+            'refresh_interval': vo.refresh_interval or 0, 'remark': vo.remark,
+        }  # 不含 share_token:开关分享单独管、保存不动它
+        if vo.id:
+            base_data['update_by'] = operator
+            await DashboardDao.edit(db, vo.id, base_data)
+            tid = vo.id
+        else:
+            tid = uuid.uuid4().hex
+            base_data['id'] = tid
+            base_data['create_by'] = operator
+            await DashboardDao.add(db, base_data)
+        await DashboardCanvasDao.upsert(db, tid, cls._content_of(vo), operator)
+        await db.commit()
+        return tid
+
+    @classmethod
+    async def save_from_chart(
+        cls,
+        db: AsyncSession,
+        name: str,
+        datasource_code: str,
+        native: Any,
+        chart_spec: Any,
+        remark: str,
+        operator: str,
+    ) -> str:
+        """对话 agent 图表存为看板:get-or-create custom_query 模型 → 存模板(取数 native + cfg)。"""
+        if not (name or '').strip():
+            raise ServiceException(message='请填写看板名称')
+        model_id = await DataModelService.ensure_custom_query_model(db, datasource_code, operator)
+        m = await DataModelDao.get_by_id(db, model_id)
+        vo = AnalysisTemplateVo(
+            name=name.strip(),
+            model_id=model_id,
+            model_name=(m.name if m else ''),
+            query={'type': 'native', 'native': native},
+            chart_spec=_normalize_chart_cfg(chart_spec) if isinstance(chart_spec, dict) else chart_spec,
+            remark=remark or 'AI 对话生成',
+        )
+        return await cls.save(db, vo, operator)
+
+    @classmethod
+    async def save_from_code(
+        cls,
+        db: AsyncSession,
+        name: str,
+        datasource_code: str,
+        code: str,
+        question: str,
+        remark: str,
+        operator: str,
+    ) -> str:
+        """代码取数的图表存为看板:**直接存 {数据源, 代码} 的代码组件**(dash_type='code' 一等类型),渲染时沙箱跑代码出图。
+        不再走 convert_code_to_board(LLM 代码→声明式转换,老失败)。question 保留签名兼容,现忽略。"""
+        if not (name or '').strip():
+            raise ServiceException(message='请填写看板名称')
+        if not (code or '').strip():
+            raise ServiceException(message='无代码可保存')
+        if not (datasource_code or '').strip():
+            raise ServiceException(message='缺少数据源')
+        content = {
+            'canvas': {'mode': 'single'},
+            'components': [{'id': 'c1', 'type': 'code', 'inline': {'datasourceCode': datasource_code, 'code': code}}],
+            'filters': [],
+        }
+        tid = uuid.uuid4().hex
+        await DashboardDao.add(db, {
+            'id': tid, 'name': name.strip(), 'dash_type': 'code',
+            'model_name': '代码看板', 'remark': remark or 'AI 对话·代码看板', 'create_by': operator,
+        })
+        await DashboardCanvasDao.upsert(db, tid, content, operator)
+        await db.commit()
+        return tid
+
+    @classmethod
+    async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
+        ids = [i for i in ids if i]
+        await DashboardCanvasDao.remove_by_dashboards(db, ids)
+        await DashboardDao.remove(db, ids)
+        await db.commit()
+
+
+class DashboardService:
+    """多图看板 / 大屏(dash_type=board/screen):基础信息 data_dashboard + 画布 data_dashboard_canvas。
+
+    组件 chart 复用单图看板作原子:引用(ref.boardId 指向 dash_type='chart' 的看板)或内嵌(inline)。
+    """
+
+    @staticmethod
+    def _base_vo(b: Any) -> DashboardVo:
+        return DashboardVo(
+            id=b.id, name=b.name, dash_type=b.dash_type, share_token=b.share_token,
+            refresh_interval=b.refresh_interval or 0, thumbnail=b.thumbnail, remark=b.remark,
+            create_time=b.create_time, update_time=b.update_time,
+        )
+
+    @classmethod
+    async def get_list(cls, db: AsyncSession, dash_type: str | None = None) -> list[DashboardVo]:
+        """列表只返回基础字段(不带 canvas 大 JSON);dash_type 为空返回全部类型(单图/多图/大屏统一列表)。"""
+        bases = await DashboardDao.get_list(db, dash_type=dash_type)
+        return [cls._base_vo(b) for b in bases]
+
+    @classmethod
+    async def get(cls, db: AsyncSession, did: str) -> DashboardVo:
+        base = await DashboardDao.get_by_id(db, did)
+        if not base:
+            raise ServiceException(message='看板不存在')
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, did)
+        content = (canvas.content if canvas else None) or {}
+        vo = cls._base_vo(base)
+        vo.canvas = content.get('canvas') or {}
+        vo.components = content.get('components') or []
+        vo.filters = content.get('filters') or []
+        return vo
+
+    @classmethod
+    async def save(cls, db: AsyncSession, vo: DashboardVo, operator: str) -> str:
+        if not (vo.name or '').strip():
+            raise ServiceException(message='请填写看板名称')
+        base_data = {
+            'name': vo.name, 'dash_type': vo.dash_type or 'board', 'model_id': None,
+            'refresh_interval': vo.refresh_interval or 0, 'thumbnail': vo.thumbnail, 'remark': vo.remark,
+        }  # 不含 share_token:分享单独管
+        if vo.id:
+            base_data['update_by'] = operator
+            await DashboardDao.edit(db, vo.id, base_data)
+            did = vo.id
+        else:
+            did = uuid.uuid4().hex
+            base_data['id'] = did
+            base_data['create_by'] = operator
+            await DashboardDao.add(db, base_data)
+        content = {'canvas': vo.canvas or {}, 'components': vo.components or [], 'filters': vo.filters or []}
+        await DashboardCanvasDao.upsert(db, did, content, operator)
+        await db.commit()
+        return did
+
+    @classmethod
+    async def delete(cls, db: AsyncSession, ids: list[str]) -> None:
+        ids = [i for i in ids if i]
+        await DashboardCanvasDao.remove_by_dashboards(db, ids)
+        await DashboardDao.remove(db, ids)
+        await db.commit()
+
+    @classmethod
+    async def gen_share(cls, db: AsyncSession, did: str, operator: str) -> str:
+        import secrets
+
+        if not await DashboardDao.get_by_id(db, did):
+            raise ServiceException(message='看板不存在')
+        token = 'db_' + secrets.token_urlsafe(24)
+        await DashboardDao.edit(db, did, {'share_token': token, 'update_by': operator})
+        await db.commit()
+        return token
+
+    @classmethod
+    async def revoke_share(cls, db: AsyncSession, did: str, operator: str) -> None:
+        if not await DashboardDao.get_by_id(db, did):
+            raise ServiceException(message='看板不存在')
+        await DashboardDao.edit(db, did, {'share_token': None, 'update_by': operator})
+        await db.commit()
+
+    @classmethod
+    async def _resolve_chart(cls, db: AsyncSession, comp: dict) -> dict | None:
+        """取一个 chart 组件的 {modelId,native,chartSpec}:内嵌直接用;引用则读那条 chart 看板的组件。"""
+        inline = comp.get('inline') if isinstance(comp.get('inline'), dict) else None
+        if inline and inline.get('native') is not None:
+            return inline
+        bid = (comp.get('ref') or {}).get('boardId')
+        if not bid:
+            return None
+        canvas = await DashboardCanvasDao.get_by_dashboard(db, bid)
+        c = (canvas.content if canvas else None) or {}
+        comps = c.get('components') or []
+        return comps[0].get('inline') if comps and isinstance(comps[0], dict) else None
+
+    @classmethod
+    async def public_dashboard(cls, db: AsyncSession, token: str) -> dict:
+        """匿名分享多图看板/大屏:token 定位 → 各 chart 组件出数 → 返回画布+数据(全程 tenant_bypass)。"""
+        from common.context import tenant_bypass
+
+        if not (token or '').strip():
+            raise ServiceException(message='缺少分享令牌')
+        with tenant_bypass():
+            base = await DashboardDao.get_by_token(db, token)
+            if not base or not base.share_token:
+                raise ServiceException(message='分享不存在或已关闭')
+            canvas = await DashboardCanvasDao.get_by_dashboard(db, base.id)
+            content = (canvas.content if canvas else None) or {}
+            filt_vals = _board_param_values(content.get('filters') or [])
+            out_comps = []
+            for comp in (content.get('components') or []):
+                item = dict(comp)
+                if comp.get('type') == 'chart':
+                    chart = await cls._resolve_chart(db, comp)
+                    rows: list = []
+                    if chart and chart.get('native') is not None and chart.get('modelId'):
+                        try:
+                            req = QueryReq(native=chart['native'], params=filt_vals, limit=5000)
+                            rows = (await DataQueryService.query(db, chart['modelId'], req))['records']
+                        except Exception:
+                            rows = []
+                    item['rows'] = rows
+                    item['chartSpec'] = (chart or {}).get('chartSpec')
+                elif comp.get('type') == 'code':
+                    # 代码看板:匿名页也实时跑沙箱出图,把 HTML 预挂到组件上(前端直接 iframe 渲染)
+                    inline = comp.get('inline') if isinstance(comp.get('inline'), dict) else {}
+                    try:
+                        item['html'] = (
+                            await DataQueryService.run_code_chart(db, inline.get('datasourceCode', ''), inline.get('code', ''))
+                        ).get('html', '')
+                    except Exception:
+                        item['html'] = ''
+                out_comps.append(item)
+            return {
+                'name': base.name, 'dashType': base.dash_type,
+                'canvas': content.get('canvas') or {}, 'components': out_comps,
+                'filters': content.get('filters') or [], 'refreshInterval': base.refresh_interval or 0,
+            }
