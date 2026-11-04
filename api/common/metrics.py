@@ -9,19 +9,19 @@
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 # —— HTTP ——
-http_requests_total = Counter('ezdata_http_requests_total', 'HTTP 请求数', ['method', 'path', 'status'])
+http_requests_total = Counter('datapilot_http_requests_total', 'HTTP 请求数', ['method', 'path', 'status'])
 http_request_duration_seconds = Histogram(
-    'ezdata_http_request_duration_seconds', 'HTTP 请求耗时(秒)', ['method', 'path']
+    'datapilot_http_request_duration_seconds', 'HTTP 请求耗时(秒)', ['method', 'path']
 )
 
 # —— Celery ——
-celery_task_total = Counter('ezdata_celery_task_total', 'Celery 任务计数', ['name', 'status'])
-celery_task_duration_seconds = Histogram('ezdata_celery_task_duration_seconds', 'Celery 任务耗时(秒)', ['name'])
+celery_task_total = Counter('datapilot_celery_task_total', 'Celery 任务计数', ['name', 'status'])
+celery_task_duration_seconds = Histogram('datapilot_celery_task_duration_seconds', 'Celery 任务耗时(秒)', ['name'])
 
 # —— 运行时 Gauge(抓取时现算) ——
-db_pool_checked_out = Gauge('ezdata_db_pool_checked_out', '数据库连接池已借出连接数')
-db_pool_size = Gauge('ezdata_db_pool_size', '数据库连接池大小')
-celery_queue_pending = Gauge('ezdata_celery_queue_pending', '各队列待处理任务数', ['queue'])
+db_pool_checked_out = Gauge('datapilot_db_pool_checked_out', '数据库连接池已借出连接数')
+db_pool_size = Gauge('datapilot_db_pool_size', '数据库连接池大小')
+celery_queue_pending = Gauge('datapilot_celery_queue_pending', '各队列待处理任务数', ['queue'])
 
 
 def observe_http(method: str, path: str, status: int, duration: float) -> None:

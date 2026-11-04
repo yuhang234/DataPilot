@@ -47,7 +47,7 @@ def _raw_text(db, doc: RagDocument) -> str:
         url = doc.source or meta.get('url')
         if not url:
             raise ValueError('网页文档缺少 URL')
-        resp = requests.get(url, timeout=30, headers={'User-Agent': 'ezdata-rag/1.0'})
+        resp = requests.get(url, timeout=30, headers={'User-Agent': 'datapilot-rag/1.0'})
         resp.raise_for_status()
         return extract_bytes(resp.content, '.html')
     if dt == 'datamodel':

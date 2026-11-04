@@ -1,7 +1,7 @@
 """
 验证「取数时从数据源专属知识库查询」链路:
   data_source → 专属 RagDataset(source_id) → 灌知识 → search_knowledge_base(query, source_id=...) 召回
-在容器内跑:docker exec ezdata-backend-dev python -m module_rag._verify_source_kb
+在容器内跑:docker exec datapilot-backend-dev python -m module_rag._verify_source_kb
 """
 
 import sys

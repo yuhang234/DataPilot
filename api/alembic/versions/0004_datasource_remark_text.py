@@ -18,7 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # 幂等:已是 TEXT(如从含该改动的 ezdata.sql 建库)则跳过
+    # 幂等:已是 TEXT(如从含该改动的 datapilot.sql 建库)则跳过
     bind = op.get_bind()
     col = next((c for c in sa.inspect(bind).get_columns('data_source') if c['name'] == 'remark'), None)
     if col is not None and 'text' not in str(col['type']).lower():

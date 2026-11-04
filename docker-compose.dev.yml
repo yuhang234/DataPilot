@@ -20,12 +20,12 @@
 # ============================================================================
 services:
   # ---------------- 后端（dev 热重载） ----------------
-  ezdata-backend-dev:
+  datapilot-backend-dev:
     build:
       context: ./api
       dockerfile: Dockerfile.dev         # 开发镜像（阿里云源装 Python 依赖；清华源缺部分包）
-    image: ezdata-backend-dev:latest
-    container_name: ezdata-backend-dev
+    image: datapilot-backend-dev:latest
+    container_name: datapilot-backend-dev
     working_dir: /app
     # 直接用 uvicorn 以工厂模式 + 热重载启动（不经 ruoyi CLI，uvicorn 必定可用）
     command: >
@@ -55,60 +55,60 @@ services:
       - TRANSPORT_CRYPTO_ENABLED=false
       - TRANSPORT_CRYPTO_MODE=off
       # 覆盖 .env.dev 中指向 127.0.0.1 的连接，改为 compose 服务名（load_dotenv 不覆盖已存在的环境变量）
-      - DB_HOST=ezdata-mysql-dev
+      - DB_HOST=datapilot-mysql-dev
       - DB_PORT=3306
-      - DB_DATABASE=ezdata              # 代码默认仍是 ruoyi-fastapi;dev 直起 uvicorn 时 .env.dev 未生效,故 compose 显式给
+      - DB_DATABASE=datapilot              # 代码默认仍是 ruoyi-fastapi;dev 直起 uvicorn 时 .env.dev 未生效,故 compose 显式给
       - DB_USERNAME=root
-      - DB_PASSWORD=ezdata123456
-      - REDIS_HOST=ezdata-redis-dev
+      - DB_PASSWORD=datapilot456
+      - REDIS_HOST=datapilot-redis-dev
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=ezdata123456
+      - REDIS_PASSWORD=datapilot456
       # 任务日志 → ES；对象存储 → MinIO（dev compose 内服务名）
       - TASK_LOG_TYPE=es
-      - TASK_ES_HOSTS=http://ezdata-es-dev:9200
+      - TASK_ES_HOSTS=http://datapilot-es-dev:9200
       - TASK_ES_USERNAME=elastic
-      - TASK_ES_PASSWORD=ezdata123456
+      - TASK_ES_PASSWORD=datapilot456
       - RAG_VECTOR_USER=elastic
-      - RAG_VECTOR_PASSWORD=ezdata123456
+      - RAG_VECTOR_PASSWORD=datapilot456
       - STORAGE_TYPE=s3
-      - S3_ENDPOINT=http://ezdata-minio-dev:9000
+      - S3_ENDPOINT=http://datapilot-minio-dev:9000
       - STORAGE_PUBLIC_ENDPOINT=http://localhost:9000
-      - S3_BUCKET_NAME=ezdata
+      - S3_BUCKET_NAME=datapilot
       - S3_ACCESS_KEY=minio
-      - S3_SECRET_KEY=ezdata123456
+      - S3_SECRET_KEY=datapilot456
       - S3_ADDRESS_STYLE=path
       # Windows 主机 bind mount 文件事件传不进容器，强制轮询以保证 --reload 生效
       - WATCHFILES_FORCE_POLLING=true
       # 调试层代码沙箱(无状态远程执行器;沙箱 env 空,凭据随请求注入)
       - SANDBOX_ENABLED=true
-      - SANDBOX_API_URL=http://ezdata-sandbox-dev:8003
-      - SANDBOX_BEARER_KEY=ezdata-sandbox-dev-key
+      - SANDBOX_API_URL=http://datapilot-sandbox-dev:8003
+      - SANDBOX_BEARER_KEY=datapilot-sandbox-dev-key
       - SANDBOX_TIMEOUT=60
     ports:
       - "9099:9099"                       # 直连后端（Swagger / 调试）
     depends_on:
-      ezdata-mysql-dev:
+      datapilot-mysql-dev:
         condition: service_healthy
-      ezdata-redis-dev:
+      datapilot-redis-dev:
         condition: service_healthy
-      ezdata-es-dev:
+      datapilot-es-dev:
         condition: service_started
-      ezdata-minio-dev:
+      datapilot-minio-dev:
         condition: service_started
     networks:
-      - ezdata-dev-network
-      - ezdata-sandbox-net                # 以便可达 internal 网里的沙箱
+      - datapilot-dev-network
+      - datapilot-sandbox-net                # 以便可达 internal 网里的沙箱
     stdin_open: true                      # 支持容器内 breakpoint()/pdb 交互
     tty: true
     restart: "no"
 
   # ---------------- Celery Worker（任务调度执行层） ----------------
-  ezdata-worker-dev:
+  datapilot-worker-dev:
     build:
       context: ./api
       dockerfile: Dockerfile.dev          # 复用后端镜像（含 celery 依赖）
-    image: ezdata-backend-dev:latest
-    container_name: ezdata-worker-dev
+    image: datapilot-backend-dev:latest
+    container_name: datapilot-worker-dev
     working_dir: /app
     # prefork 池:固定并发。设了 WORKER_CONCURRENCY 用其值;不设则省略 --concurrency → celery 默认=CPU 核数
     command: >
@@ -126,45 +126,45 @@ services:
       - APP_ENV=dev
       - TZ=${TZ:-Asia/Shanghai}           # 与后端一致:容器北京时区,任务执行/日志时间戳不慢 8 小时
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}   # 透传宿主/.env → 容器;空=用 CPU 核数
-      - DB_HOST=ezdata-mysql-dev
+      - DB_HOST=datapilot-mysql-dev
       - DB_PORT=3306
-      - DB_DATABASE=ezdata              # 代码默认仍是 ruoyi-fastapi;dev 直起 uvicorn 时 .env.dev 未生效,故 compose 显式给
+      - DB_DATABASE=datapilot              # 代码默认仍是 ruoyi-fastapi;dev 直起 uvicorn 时 .env.dev 未生效,故 compose 显式给
       - DB_USERNAME=root
-      - DB_PASSWORD=ezdata123456
-      - REDIS_HOST=ezdata-redis-dev
+      - DB_PASSWORD=datapilot456
+      - REDIS_HOST=datapilot-redis-dev
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=ezdata123456
+      - REDIS_PASSWORD=datapilot456
       # 任务日志 → ES；对象存储 → MinIO（与后端一致）
       - TASK_LOG_TYPE=es
-      - TASK_ES_HOSTS=http://ezdata-es-dev:9200
+      - TASK_ES_HOSTS=http://datapilot-es-dev:9200
       - TASK_ES_USERNAME=elastic
-      - TASK_ES_PASSWORD=ezdata123456
+      - TASK_ES_PASSWORD=datapilot456
       - RAG_VECTOR_USER=elastic
-      - RAG_VECTOR_PASSWORD=ezdata123456
+      - RAG_VECTOR_PASSWORD=datapilot456
       - STORAGE_TYPE=s3
-      - S3_ENDPOINT=http://ezdata-minio-dev:9000
+      - S3_ENDPOINT=http://datapilot-minio-dev:9000
       - STORAGE_PUBLIC_ENDPOINT=http://localhost:9000
-      - S3_BUCKET_NAME=ezdata
+      - S3_BUCKET_NAME=datapilot
       - S3_ACCESS_KEY=minio
-      - S3_SECRET_KEY=ezdata123456
+      - S3_SECRET_KEY=datapilot456
       - S3_ADDRESS_STYLE=path
       # 调试层代码沙箱(同后端)
       - SANDBOX_ENABLED=true
-      - SANDBOX_API_URL=http://ezdata-sandbox-dev:8003
-      - SANDBOX_BEARER_KEY=ezdata-sandbox-dev-key
+      - SANDBOX_API_URL=http://datapilot-sandbox-dev:8003
+      - SANDBOX_BEARER_KEY=datapilot-sandbox-dev-key
       - SANDBOX_TIMEOUT=60
     depends_on:
-      ezdata-mysql-dev:
+      datapilot-mysql-dev:
         condition: service_healthy
-      ezdata-redis-dev:
+      datapilot-redis-dev:
         condition: service_healthy
-      ezdata-es-dev:
+      datapilot-es-dev:
         condition: service_started
-      ezdata-minio-dev:
+      datapilot-minio-dev:
         condition: service_started
     networks:
-      - ezdata-dev-network
-      - ezdata-sandbox-net                # 以便可达 internal 网里的沙箱
+      - datapilot-dev-network
+      - datapilot-sandbox-net                # 以便可达 internal 网里的沙箱
     restart: "no"
 
   # ---------------- 代码执行沙箱（调试层:无状态远程执行器） ----------------
@@ -173,29 +173,29 @@ services:
   #   - 执行所需的一切(代码、数据源明文连接、日志库连接)随每次请求注入,用完即弃,请求之间互相隔离
   #   - 接 dev-network 以便数据面可达数据源/日志库(凭据不在 env,仍随请求来)
   #   - 非 root + drop 所有 caps + no-new-privileges + pids/内存上限;每个执行请求 fork 子进程,可超时 kill
-  ezdata-sandbox-dev:
-    image: ezdata-backend-dev:latest      # 复用后端镜像
-    container_name: ezdata-sandbox-dev
+  datapilot-sandbox-dev:
+    image: datapilot-backend-dev:latest      # 复用后端镜像
+    container_name: datapilot-sandbox-dev
     working_dir: /app
     command: uvicorn sandbox_app:app --host 0.0.0.0 --port 8003
     environment:
       - SANDBOX_PORT=8003
-      - SANDBOX_BEARER_KEY=ezdata-sandbox-dev-key   # 与 backend/worker 一致
+      - SANDBOX_BEARER_KEY=datapilot-sandbox-dev-key   # 与 backend/worker 一致
       - PYTHONDONTWRITEBYTECODE=1
       # 禁用 RLIMIT_AS:它限的是虚拟地址空间,pandas/numpy/cryptography(akshare 依赖)的 .so
       # mmap 远超实际 RSS,512MB 会导致 "failed to map segment"。真实内存由容器 mem_limit(cgroup)兜底。
       - SANDBOX_MEM_LIMIT_BYTES=0
       # 出网只能经 egress 代理(域名白名单);内部服务走 NO_PROXY 直连内网
-      - HTTP_PROXY=http://ezdata-egress-proxy:8888
-      - HTTPS_PROXY=http://ezdata-egress-proxy:8888
-      - http_proxy=http://ezdata-egress-proxy:8888
-      - https_proxy=http://ezdata-egress-proxy:8888
-      - NO_PROXY=localhost,127.0.0.1,ezdata-mysql-dev,ezdata-es-dev,ezdata-minio-dev,ezdata-redis-dev,ezdata-backend-dev,ezdata-worker-dev
-      - no_proxy=localhost,127.0.0.1,ezdata-mysql-dev,ezdata-es-dev,ezdata-minio-dev,ezdata-redis-dev,ezdata-backend-dev,ezdata-worker-dev
+      - HTTP_PROXY=http://datapilot-egress-proxy:8888
+      - HTTPS_PROXY=http://datapilot-egress-proxy:8888
+      - http_proxy=http://datapilot-egress-proxy:8888
+      - https_proxy=http://datapilot-egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1,datapilot-mysql-dev,datapilot-es-dev,datapilot-minio-dev,datapilot-redis-dev,datapilot-backend-dev,datapilot-worker-dev
+      - no_proxy=localhost,127.0.0.1,datapilot-mysql-dev,datapilot-es-dev,datapilot-minio-dev,datapilot-redis-dev,datapilot-backend-dev,datapilot-worker-dev
     volumes:
       - ./api:/app:ro                     # 只读挂载源码
     networks:
-      - ezdata-sandbox-net                # 仅 internal 网:无直连公网,出网经 egress-proxy;内部服务亦在此网可达
+      - datapilot-sandbox-net                # 仅 internal 网:无直连公网,出网经 egress-proxy;内部服务亦在此网可达
     tmpfs:
       - /tmp                              # 临时可写(dlt pipeline 等)
     cap_drop:
@@ -211,25 +211,25 @@ services:
   #   *           → 全放行
   #   逗号域名列表 → 仅放行这些域名(含子域),其余拒绝(默认即财经数据域名,够 akshare 用)
   # 双网卡:internal 网面向沙箱,dev-network 借 NAT 出公网。
-  ezdata-egress-proxy:
+  datapilot-egress-proxy:
     build:
       context: ./deploy/egress-proxy   # 构建期装好 tinyproxy
-    image: ezdata-egress-proxy:latest
-    container_name: ezdata-egress-proxy
+    image: datapilot-egress-proxy:latest
+    container_name: datapilot-egress-proxy
     environment:
       - SANDBOX_EGRESS_ALLOW=eastmoney.com,sinajs.cn,sina.com.cn,sse.com.cn,szse.cn,cninfo.com.cn,csindex.com.cn,hexun.com,jrj.com.cn,10jqka.com.cn,jin10.com,okx.com,gateio.ws,gate.io,kraken.com,kucoin.com
     networks:
-      - ezdata-sandbox-net                # 面向沙箱(internal)
-      - ezdata-dev-network                # 借 NAT 出公网
+      - datapilot-sandbox-net                # 面向沙箱(internal)
+      - datapilot-dev-network                # 借 NAT 出公网
     restart: "no"
 
   # ---------------- 前端（Vite dev server / HMR） ----------------
-  ezdata-frontend-dev:
+  datapilot-frontend-dev:
     build:
       context: ./web
       dockerfile: Dockerfile.dev          # 仅装 node_modules，跑 vite dev
-    image: ezdata-frontend-dev:latest
-    container_name: ezdata-frontend-dev
+    image: datapilot-frontend-dev:latest
+    container_name: datapilot-frontend-dev
     working_dir: /app
     volumes:
       - ./web:/app     # 挂载前端源码：改 .vue/.js 即时 HMR
@@ -238,116 +238,116 @@ services:
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "80"]
     environment:
       # vite.config.js 的代理目标读取此变量，docker 内指向后端服务名（容器互通）
-      - VITE_DEV_PROXY_TARGET=http://ezdata-backend-dev:9099
+      - VITE_DEV_PROXY_TARGET=http://datapilot-backend-dev:9099
     ports:
       - "80:80"                           # 宿主/容器端口一致(均 80)，避免 HMR websocket 错配；访问 http://localhost
     depends_on:
-      - ezdata-backend-dev
+      - datapilot-backend-dev
     networks:
-      - ezdata-dev-network
+      - datapilot-dev-network
     restart: "no"
 
   # ---------------- MySQL ----------------
-  ezdata-mysql-dev:
+  datapilot-mysql-dev:
     image: mysql:8.0
-    container_name: ezdata-mysql-dev
+    container_name: datapilot-mysql-dev
     environment:
-      MYSQL_ROOT_PASSWORD: ezdata123456
-      MYSQL_DATABASE: ezdata       # 与 .env.dev 的 DB_DATABASE 一致
+      MYSQL_ROOT_PASSWORD: datapilot456
+      MYSQL_DATABASE: datapilot       # 与 .env.dev 的 DB_DATABASE 一致
     ports:
       - "13306:3306"
     volumes:
       # 首次启动自动导入初始化 sql（库为空时执行）
-      - ./api/sql/ezdata.sql:/docker-entrypoint-initdb.d/ezdata.sql
-      - ezdata-mysql-dev-data:/var/lib/mysql
+      - ./api/sql/datapilot.sql:/docker-entrypoint-initdb.d/datapilot.sql
+      - datapilot-mysql-dev-data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
-      - ezdata-dev-network
-      - ezdata-sandbox-net                # 沙箱经内网取内部数据源
+      - datapilot-dev-network
+      - datapilot-sandbox-net                # 沙箱经内网取内部数据源
     healthcheck:
       # 用 TCP(-h127.0.0.1,而非走 socket 的 localhost)+ 真查询 SELECT 1,确保「healthy」= 真能网络连+查;
       # start_period 给首次 initdb 留时间(其临时服务器 --skip-networking 期 TCP 会拒,不该被判 healthy)。
-      test: ["CMD", "mysql", "-h127.0.0.1", "-uroot", "-pezdata123456", "-e", "SELECT 1"]
+      test: ["CMD", "mysql", "-h127.0.0.1", "-uroot", "-pdatapilot456", "-e", "SELECT 1"]
       interval: 5s
       timeout: 10s
       retries: 30
       start_period: 40s
 
   # ---------------- Redis ----------------
-  ezdata-redis-dev:
+  datapilot-redis-dev:
     image: redis:latest
-    container_name: ezdata-redis-dev
-    command: redis-server --requirepass ezdata123456
+    container_name: datapilot-redis-dev
+    command: redis-server --requirepass datapilot456
     ports:
       - "16379:6379"
     networks:
-      - ezdata-dev-network
+      - datapilot-dev-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "ezdata123456", "ping"]
+      test: ["CMD", "redis-cli", "-a", "datapilot456", "ping"]
       interval: 5s
       timeout: 10s
       retries: 30
 
   # ---------------- Elasticsearch 8（任务日志 + 知识库向量库 + 数据服务,一套三用） ----------------
-  ezdata-es-dev:
+  datapilot-es-dev:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
-    container_name: ezdata-es-dev
+    container_name: datapilot-es-dev
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=true               # 开启 basic auth(用户 elastic)
       - xpack.security.http.ssl.enabled=false     # 保持明文 HTTP,只加账号密码(免证书);dev/内网用
-      - ELASTIC_PASSWORD=ezdata123456             # 仅在数据目录为空(首次初始化)时生效
+      - ELASTIC_PASSWORD=datapilot456             # 仅在数据目录为空(首次初始化)时生效
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - "19200:9200"                      # 宿主 9200 被其它服务占用 → 改发布 19200(容器内部仍走 9200,服务间不受影响)
     volumes:
-      - ezdata-es-dev-data:/usr/share/elasticsearch/data
+      - datapilot-es-dev-data:/usr/share/elasticsearch/data
     networks:
-      ezdata-dev-network:
-        aliases: [ezdata-es]              # demo_es 种子用中性名 ezdata-es(与 prod 一致),dev 经别名解析
-      ezdata-sandbox-net:                 # 沙箱经内网写任务日志
-        aliases: [ezdata-es]
+      datapilot-dev-network:
+        aliases: [datapilot-es]              # demo_es 种子用中性名 datapilot-es(与 prod 一致),dev 经别名解析
+      datapilot-sandbox-net:                 # 沙箱经内网写任务日志
+        aliases: [datapilot-es]
 
   # ---------------- MinIO（对象存储，STORAGE_TYPE=s3） ----------------
-  ezdata-minio-dev:
+  datapilot-minio-dev:
     image: minio/minio
-    container_name: ezdata-minio-dev
+    container_name: datapilot-minio-dev
     environment:
       MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: ezdata123456
+      MINIO_ROOT_PASSWORD: datapilot456
     command: server /data --console-address ":19001"
     ports:
       - "9000:9000"
       - "19001:19001"
     volumes:
-      - ezdata-minio-dev-data:/data
+      - datapilot-minio-dev-data:/data
     networks:
-      - ezdata-dev-network
-      - ezdata-sandbox-net                # 沙箱经内网读写对象存储数据源
+      - datapilot-dev-network
+      - datapilot-sandbox-net                # 沙箱经内网读写对象存储数据源
 
   # ---------------- MinIO 建桶（一次性，建好退出） ----------------
-  ezdata-minio-init-dev:
+  datapilot-minio-init-dev:
     image: minio/mc
     depends_on:
-      - ezdata-minio-dev
+      - datapilot-minio-dev
     entrypoint: >
-      /bin/sh -c "until mc alias set m http://ezdata-minio-dev:9000 minio ezdata123456; do echo waiting-for-minio; sleep 2; done;
-                  mc mb -p m/ezdata;
-                  mc anonymous set download m/ezdata;
+      /bin/sh -c "until mc alias set m http://datapilot-minio-dev:9000 minio datapilot456; do echo waiting-for-minio; sleep 2; done;
+                  mc mb -p m/datapilot;
+                  mc anonymous set download m/datapilot;
                   exit 0"
     networks:
-      - ezdata-dev-network
+      - datapilot-dev-network
 
 volumes:
-  ezdata-mysql-dev-data:                   # 持久化数据库，重启不丢数据（如需重置：docker compose ... down -v）
-  ezdata-es-dev-data:
-  ezdata-minio-dev-data:
+  datapilot-mysql-dev-data:                   # 持久化数据库，重启不丢数据（如需重置：docker compose ... down -v）
+  datapilot-es-dev-data:
+  datapilot-minio-dev-data:
 
 networks:
-  ezdata-dev-network:
-    name: ezdata-dev-network
+  datapilot-dev-network:
+    name: datapilot-dev-network
     driver: bridge
-  ezdata-sandbox-net:                      # 沙箱专用内网:internal=true 无 NAT/公网,出网只能经 egress-proxy
-    name: ezdata-sandbox-net
+  datapilot-sandbox-net:                      # 沙箱专用内网:internal=true 无 NAT/公网,出网只能经 egress-proxy
+    name: datapilot-sandbox-net
     driver: bridge
     internal: true

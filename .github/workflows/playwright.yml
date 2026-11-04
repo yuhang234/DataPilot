@@ -54,7 +54,7 @@ jobs:
         run: |
           cd tests
           # 唯一就绪判据:后端真正响应 /captchaImage(不再依赖脆弱的 `ps | grep "Up"`)。
-          # 首启需 import 整份 ezdata.sql(DB 健康检查已加 start_period 容忍慢导入),给足到 ~8 分钟。
+          # 首启需 import 整份 datapilot.sql(DB 健康检查已加 start_period 容忍慢导入),给足到 ~8 分钟。
           echo "Waiting for backend to serve /captchaImage ..."
           ready=0
           for i in $(seq 1 96); do
@@ -136,7 +136,7 @@ jobs:
         run: |
           cd tests
           # 唯一就绪判据:后端真正响应 /captchaImage(不再依赖脆弱的 `ps | grep "Up"`)。
-          # 首启需 import 整份 ezdata-pg.sql(DB 健康检查已加 start_period 容忍慢导入),给足到 ~8 分钟。
+          # 首启需 import 整份 datapilot-pg.sql(DB 健康检查已加 start_period 容忍慢导入),给足到 ~8 分钟。
           echo "Waiting for backend to serve /captchaImage ..."
           ready=0
           for i in $(seq 1 96); do

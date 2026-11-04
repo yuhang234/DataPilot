@@ -9,7 +9,7 @@ class SysFileInfo(Base, TenantMixin):
     """
     文件信息表
 
-    多租户:仅本体表加 TenantMixin(ezdata 全局按 tenant_id 自动过滤/盖章)。其余 file-* 表
+    多租户:仅本体表加 TenantMixin(datapilot 全局按 tenant_id 自动过滤/盖章)。其余 file-* 表
     (reference/acl/access_log/retention_notice)按 file_id 关联,经本体租户过滤传递性隔离;
     retention_policy(PK=business_type 全局配置)与 reconcile_run/issue(系统级跨租户扫描)保持无租户。
     """

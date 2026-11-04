@@ -317,13 +317,13 @@ class AiChatService:
         all_mcp_configs = deduped_mcp
 
         def _runnable(extra_tools: list | None):
-            """按已连接的 MCP 工具(带 _ezdata_code)装配可运行对象:无成员→单 Agent;有成员→Team。"""
+            """按已连接的 MCP 工具(带 _datapilot_code)装配可运行对象:无成员→单 Agent;有成员→Team。"""
             extra_tools = extra_tools or []
             if not member_specs:
                 return cls._build_agent(
                     artifacts=artifacts, ui_actions=ui_actions, extra_tools=extra_tools, **build_kwargs
                 )
-            by = lambda codes: [t for t in extra_tools if getattr(t, '_ezdata_code', None) in codes]  # noqa: E731
+            by = lambda codes: [t for t in extra_tools if getattr(t, '_datapilot_code', None) in codes]  # noqa: E731
             members = [
                 cls._build_agent(
                     artifacts=artifacts,

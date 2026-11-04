@@ -39,7 +39,7 @@ def check_learning_stores() -> None:
         session_context=True,  # 会话上下文
         entity_memory=True,  # 实体记忆
         learned_knowledge=True,  # 已学知识(≈ 现有 recipe/数据源专属 KB 的定位)
-        namespace='ezdata-spike',
+        namespace='datapilot-spike',
         max_updates_per_run=10,
     )
     enabled = [

@@ -1,4 +1,4 @@
-"""ezdata Agent 离线评测/回归框架(P0+P1:确定性打分 + N 次重跑通过率)。
+"""datapilot Agent 离线评测/回归框架(P0+P1:确定性打分 + N 次重跑通过率)。
 
 设计见 evals/README.md。核心:
 - trace.py  : SSE 事件流 → 归一 Trace(打分器的唯一输入)

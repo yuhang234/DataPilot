@@ -10,7 +10,7 @@ from typing import Any
 
 
 def _exc_location(exception: Any) -> tuple[str, str]:
-    """从异常回溯中提取出错文件与行号(对齐 ezdata 告警上下文)"""
+    """从异常回溯中提取出错文件与行号(对齐 datapilot 告警上下文)"""
     tb = getattr(exception, '__traceback__', None)
     if tb is None:
         return '', ''

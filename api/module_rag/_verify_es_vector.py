@@ -82,7 +82,7 @@ def main() -> int:
     check('ping', store.ping())
     if not store.ping():
         print(
-            'ES8 不可达,先启动:docker run -d --name ezdata-es8-test -p 9201:9200 '
+            'ES8 不可达,先启动:docker run -d --name datapilot-es8-test -p 9201:9200 '
             '-e discovery.type=single-node -e xpack.security.enabled=false elasticsearch:8.13.4'
         )
         return 1

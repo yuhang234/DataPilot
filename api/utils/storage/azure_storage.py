@@ -1,6 +1,6 @@
 """Azure Blob 存储实现（storage_type=azure-blob）。依赖：azure-storage-blob
 
-说明：原 ezdata 用 redis 缓存 SAS token；本模板存储层为同步调用，这里改为每次构建客户端时
+说明：原 datapilot 用 redis 缓存 SAS token；本模板存储层为同步调用，这里改为每次构建客户端时
 生成 SAS token（generate_account_sas 为本地计算，开销很小），去除对 redis 的依赖。
 """
 

@@ -14,8 +14,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ezdata.errors import ReadOnlyViolation
-from ezdata.handlers.sandbox_guard import read_only
+from datapilot.errors import ReadOnlyViolation
+from datapilot.handlers.sandbox_guard import read_only
 
 
 class _FakeHandler:

@@ -59,7 +59,7 @@ def _load_datasource(code: str) -> Any:
 
 
 def _build_handler(rec: dict) -> Any:
-    from ezdata.handlers import create_handler
+    from datapilot.handlers import create_handler
 
     # 经 create_handler 走进程内实例缓存(worker 跨任务复用连接池);
     # secrets 为密文串(查库)→ from_record 内部解密;为明文 dict(沙箱注入)→ 直接合并不解密
@@ -152,7 +152,7 @@ class DataIntegrationRunner(BaseRunner):
         return result
 
     def _run_body(self) -> Any:
-        from ezdata.handlers import Capability
+        from datapilot.handlers import Capability
 
         extract = self.params.get('extract') or {}
         transform = self.params.get('transform') or {}
@@ -190,7 +190,7 @@ class DataIntegrationRunner(BaseRunner):
 
         # 列式快路(无 transform + DB 目标):避开 query→list[dict] 行模式,直接喂 dlt 列式装载。
         # 任一条件不满足(转换/文件目标/不支持)都回退下方普通 query→list→write。
-        from ezdata.utils.etl_util import assert_readonly_sql, is_file_target
+        from datapilot.utils.etl_util import assert_readonly_sql, is_file_target
 
         dst_is_file = is_file_target(getattr(dst, 'family', None))
 
@@ -231,7 +231,7 @@ class DataIntegrationRunner(BaseRunner):
           仅选 1 个授权源时另注入 handler 别名。print() 即日志。
         - 与 transform 同为 worker 进程内 exec(同一信任模型);调试预览走沙箱(见 EtlService.preview)。
         """
-        from ezdata.handlers import Capability
+        from datapilot.handlers import Capability
 
         code = (extract.get('code') or '').strip()
         if not code:
@@ -354,7 +354,7 @@ class DataIntegrationRunner(BaseRunner):
         起点,每批**装载成功后**再提交末条事件位点(at-least-once);位点字段 _log_file/_log_pos 在
         装载前剔除,不污染目标表。kafka 等非 CDC 流式源不受影响(自带 offset/group 机制)。
         """
-        from ezdata.utils.etl_util import stream_kwargs, stream_statement
+        from datapilot.utils.etl_util import stream_kwargs, stream_statement
         from module_task_schedule.cdc_checkpoint import ckpt_key, load_checkpoint, save_checkpoint
 
         cdc = getattr(src, 'family', None) == 'cdc'
@@ -437,7 +437,7 @@ class DataIntegrationRunner(BaseRunner):
         pipeline_name 以 task_id 为唯一键:不同任务即使写同一目标表也用各自的 dlt pipeline 状态,
         避免并发/多任务共用 pipeline 状态相互串扰;同一任务重跑沿用同名 pipeline(保留增量状态)。
         """
-        from ezdata.utils.etl_util import is_file_target, serialize_records
+        from datapilot.utils.etl_util import is_file_target, serialize_records
 
         # 数据质量:行级规则对每批 list[dict] 校验并累计装载行数(供收尾的 row_count_min 判断)。
         # 快路的 Arrow/resource 非 list,已在 run 中因配置了质量规则而禁用,这里只需处理 list。

@@ -24,10 +24,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: ezdata123/ezdata          # 后端(MySQL 版)
+          - image: datapilot/datapilot          # 后端(MySQL 版)
             context: ./api
             dockerfile: ./api/Dockerfile.my
-          - image: ezdata123/ezdata_web       # 前端
+          - image: datapilot/datapilot-web       # 前端
             context: ./web
             dockerfile: ./web/Dockerfile
     steps:

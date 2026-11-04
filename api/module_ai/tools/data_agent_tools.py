@@ -467,7 +467,7 @@ def _datasource_business_context(code: str) -> str:
 
 def _build_handler(code: str) -> Any:
     """用明文连接(查库+解密)在 backend 进程建 handler,查只读元信息。"""
-    from ezdata.handlers import create_handler
+    from datapilot.handlers import create_handler
     from module_ai.tools.sandbox_code_tools import _resolve_datasource
 
     ds = _resolve_datasource(code)

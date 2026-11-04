@@ -48,7 +48,7 @@ def main():
         db.commit()
 
         qa_csv = 'question,answer\n公司年假有几天,每年15天带薪年假\n试用期多长,试用期为3个月\n'.encode()
-        ch_csv = 'content\nezdata 数据集成基于 dlt 实现抽取与加载\n知识库向量库默认使用 ES8 的 kNN\n'.encode()
+        ch_csv = 'content\ndatapilot 数据集成基于 dlt 实现抽取与加载\n知识库向量库默认使用 ES8 的 kNN\n'.encode()
         storage.save('upload/_bulk_qa.csv', qa_csv)
         storage.save('upload/_bulk_chunk.csv', ch_csv)
 

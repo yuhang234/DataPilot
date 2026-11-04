@@ -1,6 +1,6 @@
 """文件管理后台维护任务(供 APScheduler sys_job 调度)。
 
-移植自 RuoYi-Vue3-FastAPI 的 module_task/file_task.py,适配 ezdata:
+移植自 RuoYi-Vue3-FastAPI 的 module_task/file_task.py,适配 datapilot:
 - 均为系统级全库扫描(保留提醒/回收站清理/存储对账),用 tenant_bypass 绕过租户过滤,
   否则只扫到当前(常为空)租户。
 - 无必需入参(SchedulerUtil._import_function 只按 module.func 导入,不解析实参),

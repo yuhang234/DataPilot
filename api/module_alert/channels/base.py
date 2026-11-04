@@ -4,7 +4,7 @@
 按 forward_conf 中每一项的 type 分发到对应渠道。渠道实现为同步函数(供 Celery worker 调用)。
 内置渠道：webhook / kafka / email / notice / wecom / feishu / dingtalk；可通过 register_channel 扩展。
 
-格式参考 ezdata(api/web_apps/alert)：
+格式参考 datapilot(api/web_apps/alert)：
 - webhook：POST 告警记录的完整 JSON(alert.to_dict())到 webhook_url；
 - kafka：将告警记录 JSON 字符串发送到 topic；
 - email：标题+内容通过 SMTP 发送；
@@ -49,7 +49,7 @@ def dispatch_forward(record: dict[str, Any], forward_conf_list: list[dict[str, A
 
 
 def _alert_json(record: dict[str, Any]) -> str:
-    """告警记录序列化为 JSON 字符串(对齐 ezdata 的 alert.to_dict())"""
+    """告警记录序列化为 JSON 字符串(对齐 datapilot 的 alert.to_dict())"""
     return json.dumps(record, ensure_ascii=False, default=str)
 
 
@@ -76,7 +76,7 @@ def _send_webhook(record: dict[str, Any], conf: dict[str, Any]) -> None:
 
 @register_channel('kafka')
 def _send_kafka(record: dict[str, Any], conf: dict[str, Any]) -> None:
-    """Kafka：将告警记录 JSON 字符串发送到 topic(对齐 ezdata)"""
+    """Kafka：将告警记录 JSON 字符串发送到 topic(对齐 datapilot)"""
     topic = conf.get('topic')
     servers = conf.get('bootstrap_servers')
     if not topic or not servers:

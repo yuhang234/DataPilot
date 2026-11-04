@@ -13,9 +13,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ezdata.handlers.agg_spec import AggSpec
-from ezdata.handlers.base import Capability
-from ezdata.handlers.sqlite_handler.sqlite_handler import SQLiteHandler
+from datapilot.handlers.agg_spec import AggSpec
+from datapilot.handlers.base import Capability
+from datapilot.handlers.sqlite_handler.sqlite_handler import SQLiteHandler
 from module_data.service import metric_service as M
 
 # 财经样例:各板块金额分布,sum 互不相等(便于 top_n 无并列歧义)

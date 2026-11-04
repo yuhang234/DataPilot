@@ -1,6 +1,6 @@
 """
 验证「KB 挂到取数 Agent」:数据模型取数时,自动从其数据源专属知识库召回业务知识注入 prompt。
-容器内跑:docker exec ezdata-backend-dev python -m module_rag._verify_kb_in_query
+容器内跑:docker exec datapilot-backend-dev python -m module_rag._verify_kb_in_query
 """
 
 import asyncio

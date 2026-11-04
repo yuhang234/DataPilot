@@ -11,9 +11,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ezdata.handlers.agg_spec import AggNotSupported, AggSpec
-from ezdata.handlers.base import Column
-from ezdata.handlers.elasticsearch_handler.elasticsearch_handler import ElasticsearchHandler
+from datapilot.handlers.agg_spec import AggNotSupported, AggSpec
+from datapilot.handlers.base import Column
+from datapilot.handlers.elasticsearch_handler.elasticsearch_handler import ElasticsearchHandler
 
 _ES_COLS = {'dt': 'date', 'symbol': 'keyword', 'sector': 'text', 'sector.keyword': 'keyword', 'amount': 'double'}
 

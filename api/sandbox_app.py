@@ -174,7 +174,7 @@ def _jsonable(v: Any) -> Any:
         return v
     except (TypeError, ValueError):
         try:
-            from ezdata.utils.etl_util import json_safe
+            from datapilot.utils.etl_util import json_safe
 
             return json_safe(v)
         except Exception:
@@ -391,8 +391,8 @@ def _run_pycode(kind: str, payload: dict) -> dict:
     if kind == 'pydata':
         ds = payload.get('datasource') or {}
         try:
-            from ezdata.handlers import create_handler
-            from ezdata.handlers.sandbox_guard import read_only
+            from datapilot.handlers import create_handler
+            from datapilot.handlers.sandbox_guard import read_only
 
             g['handler'] = read_only(
                 create_handler(ds.get('source_type'), ds.get('config') or {}, ds.get('secrets') or {}, cache=False)
@@ -404,8 +404,8 @@ def _run_pycode(kind: str, payload: dict) -> dict:
         # 代码取数:注入 get_handler(code) 从预解密注入的 datasources map 建 handler(仅限注入的源)
         dsmap = payload.get('datasources') or {}
         try:
-            from ezdata.handlers import create_handler
-            from ezdata.handlers.sandbox_guard import read_only
+            from datapilot.handlers import create_handler
+            from datapilot.handlers.sandbox_guard import read_only
 
             def _get_handler(code: str) -> Any:
                 ds = dsmap.get(code)
@@ -546,7 +546,7 @@ def _execute_with_timeout(kind: str, payload: dict, timeout: int) -> dict:
 # ---------------------------------------------------------------------------
 # FastAPI 应用
 # ---------------------------------------------------------------------------
-app = FastAPI(title='ezdata sandbox', docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title='DataPilot sandbox', docs_url=None, redoc_url=None, openapi_url=None)
 
 
 def _auth(authorization: str = Header(default='')) -> None:

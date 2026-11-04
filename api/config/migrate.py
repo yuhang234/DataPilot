@@ -3,7 +3,7 @@
 背景:本项目库多由 `*.sql` 初始化、**不在 alembic 管控下**(无 alembic_version 表)。直接
 `alembic upgrade head` 会从 0001_baseline 重跑建表而报错。故本模块:
   1) 已纳管(有 alembic_version)→ 直接 `upgrade head`;
-  2) 未纳管 → 先 `stamp` 到基线(`AUTO_MIGRATE_BASELINE`,默认 `0002_seed_system`,即 ezdata.sql 对应的
+  2) 未纳管 → 先 `stamp` 到基线(`AUTO_MIGRATE_BASELINE`,默认 `0002_seed_system`,即 datapilot.sql 对应的
      "建表+种子"状态)再 `upgrade head`。配合幂等迁移(add/alter 前查存在性),无论新库/滞后库都安全。
 迁移失败只记日志、**不阻断启动**。
 """

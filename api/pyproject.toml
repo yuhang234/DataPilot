@@ -3,9 +3,9 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ezdata-cli"
+name = "datapilot-cli"
 version = "2.0.0"
-description = "ezdata backend internal CLI entrypoint"
+description = "DataPilot backend internal CLI entrypoint"
 requires-python = ">=3.10"
 
 [project.scripts]

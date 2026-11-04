@@ -18,7 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # 幂等:列已存在(如从含该列的 ezdata.sql 建库)则跳过,便于 stamp 基线后重跑
+    # 幂等:列已存在(如从含该列的 datapilot.sql 建库)则跳过,便于 stamp 基线后重跑
     bind = op.get_bind()
     cols = [c['name'] for c in sa.inspect(bind).get_columns('task')]
     if 'timeout' not in cols:

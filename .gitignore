@@ -3,9 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# ezdata 轻 UI 运行产物:连接目录含明文密钥,本地测试库,勿提交
+# datapilot 轻 UI 运行产物:连接目录含明文密钥,本地测试库,勿提交
 *.db
-ezdata_local.db
+datapilot_local.db
 
 # AI agent 本地实验脚本 / 大日志 / 跑批产物,勿提交
 api/module_ai/experiments/
@@ -42,6 +42,9 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Tool caches
+.ruff_cache/
 
 # Unit test / coverage reports
 htmlcov/

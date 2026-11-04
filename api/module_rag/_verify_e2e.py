@@ -24,7 +24,7 @@ from module_rag.service.document_service import DocumentService
 TENANT = 100
 
 LONG_TEXT = """
-ezdata 是一个 AI 原生的数据平台,核心能力包括数据源管理、数据模型、ETL 数据集成与任务调度。
+datapilot 是一个 AI 原生的数据平台,核心能力包括数据源管理、数据模型、ETL 数据集成与任务调度。
 数据集成基于 dlt(data load tool)实现,支持 MySQL、Elasticsearch、MongoDB、Kafka 等多种数据源的抽取与加载。
 任务调度模块提供普通任务调度与任务工作流(DAG),DAG 采用 AntV X6 画布编辑,事件驱动编排,支持分布式与单机两种运行模式。
 知识库模块提供 RAG 检索增强:文档经过抽取、清洗、切分、向量化后写入向量库,检索时支持向量召回、全文召回与混合检索,并可选 rerank 重排。

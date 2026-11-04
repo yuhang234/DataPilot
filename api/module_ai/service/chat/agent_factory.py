@@ -315,7 +315,7 @@ def build_agent(
         agent_instructions = [metric_catalog, *agent_instructions]
 
     # 稍弱模型:追加"稳妥执行"强化(别跳步/别凭记忆硬写/按工具返回写法调用)
-    from ezdata.services.prompts import is_weak_model
+    from datapilot.services.prompts import is_weak_model
 
     if is_weak_model(getattr(model_config, 'model_code', None)):
         agent_instructions = [*agent_instructions, _WEAK_AGENT_NUDGE]

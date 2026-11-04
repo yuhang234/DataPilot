@@ -26,7 +26,7 @@ from evals.runner import FIXTURES_DIR, run_all_live, run_all_replay
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description='ezdata Agent 评测/回归')
+    ap = argparse.ArgumentParser(description='datapilot Agent 评测/回归')
     ap.add_argument('--mode', choices=['replay', 'live'], default='replay')
     ap.add_argument('--cases', default=None, help='用例文件(默认扫 evals/cases/*.yaml)')
     ap.add_argument('--out', default=None, help='markdown 报告输出路径(默认打印到 stdout)')

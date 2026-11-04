@@ -68,7 +68,7 @@ async def with_mcp_tools(configs: list[dict], connected: list, cb: Any) -> None:
     try:
         async with MCPTools(**kwargs) as t:
             logger.info(f'MCP 工具已连接: {cfg["code"]} ({len(getattr(t, "functions", None) or {})} 个方法)')
-            t._ezdata_code = cfg['code']  # 标记来源 code,便于多 agent 时按应用分发
+            t._datapilot_code = cfg['code']  # 标记来源 code,便于多 agent 时按应用分发
             await with_mcp_tools(rest, [*connected, t], cb)
     except Exception as e:
         logger.warning(f'MCP 工具连接失败,跳过 {cfg["code"]}: {e}')
@@ -84,7 +84,7 @@ async def stream_with_mcp_bridge(
 ) -> AsyncGenerator[str, None]:
     """有 MCP 时的流式桥接:在独立 worker task 内连 MCP + 跑 agent/Team,队列桥接给本生成器。
 
-    run_stream(extra_tools): 给定已连接的 MCP 工具(带 _ezdata_code),返回逐块 SSE 的异步生成器。
+    run_stream(extra_tools): 给定已连接的 MCP 工具(带 _datapilot_code),返回逐块 SSE 的异步生成器。
     其首次迭代(即 agent/Team 的构造与 arun)发生在 worker task 内、MCPTools async with 作用域中——
     这是 anyio cancel scope 同 task 约束的关键,勿改。
 

@@ -1,7 +1,7 @@
 """种子:代码看板(dash_type='code')示例 —— 真跑数据源(demo_es 的行业板块汇总)出图。
 用途:演示 / 回归测试代码看板端到端(创建·预览·纯图页·匿名分享)。保留,不随测试删除。
 
-运行:docker exec ezdata-backend-dev python sql/seed_code_boards.py
+运行:docker exec datapilot-backend-dev python sql/seed_code_boards.py
 """
 
 import asyncio

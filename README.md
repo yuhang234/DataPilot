@@ -1,4 +1,4 @@
-# DataPilot（ezdata）
+# DataPilot
 
 **一体化数据智能平台**：把「多源数据接入 → 数据开发与调度 → 指标 / 可视化 → AI 应用与知识库 → 告警与治理」收进同一套可私有化部署的系统。
 
@@ -31,7 +31,7 @@
 ### 1. 多源数据接入与数据开发
 - **78+ 数据源连接器**：关系型 / 数仓 / OLAP（MySQL、PostgreSQL、Oracle、SQL Server、ClickHouse、Doris、StarRocks、Snowflake、BigQuery、Databricks…）、时序库、文档库、KV、图库、向量库、消息队列、文件与对象存储、HTTP / OpenAPI 等。
 - **统一连接器契约**：读 / 写 / 抽取（dlt）/ 结构探测 / 流式 / 向量 / 接口生成等能力位声明，按需懒加载驱动与连接池。
-- **可独立使用的 `ezdata` SDK**：不依赖数据库、租户与加密实现的纯数据访问内核，可被平台、CLI、MCP、Agent 复用（见 [`api/ezdata/README.md`](api/ezdata/README.md)）。
+- **可独立使用的 `datapilot` SDK**：不依赖数据库、租户与加密实现的纯数据访问内核，可被平台、CLI、MCP、Agent 复用（见 [`api/datapilot/README.md`](api/datapilot/README.md)）。
 - **数据集成（ETL）**：基于 dlt 的抽取 → 转换 → 装载，支持全量 / 增量、CDC（MySQL binlog）、字段映射与任务化运行。
 - **数据资产**：表 / 字段元数据、数据血缘、指标定义、数据访问审计。
 - **在线取数**：只读 SQL 护栏、分页预览、结果导出、图表配置生成。
@@ -139,7 +139,7 @@ flowchart LR
 │   ├── module_generator/       # 代码生成器
 │   ├── module_rag/             # 知识库 / 切分 / 向量化 / 检索 / 重排
 │   ├── module_task_schedule/   # 任务 / 模板 / DAG / 实例 / 日志 / Worker / CDC
-│   ├── ezdata/                 # 可独立复用的数据访问 SDK + 78+ 连接器
+│   ├── datapilot/                 # 可独立复用的数据访问 SDK + 78+ 连接器
 │   ├── alembic/                # 数据库迁移
 │   ├── sql/                    # MySQL / PostgreSQL 初始化脚本
 │   ├── sandbox_app.py          # 无状态代码执行沙箱
@@ -220,7 +220,7 @@ npm run dev
 
 ### 数据库初始化与迁移
 
-- Docker：首次启动自动导入 `api/sql/ezdata.sql`（MySQL）或 `api/sql/ezdata-pg.sql`（PostgreSQL）。
+- Docker：首次启动自动导入 `api/sql/datapilot.sql`（MySQL）或 `api/sql/datapilot-pg.sql`（PostgreSQL）。
 - 本地 / 已有库：使用 Alembic 升级到最新版本。
 
 ```bash
@@ -352,10 +352,10 @@ ruoyi dev test
 
 ## 更多文档
 
-- 数据访问 SDK：[`api/ezdata/README.md`](api/ezdata/README.md)
-- 数据源连接器清单：[`api/ezdata/handlers/README.md`](api/ezdata/handlers/README.md)
+- 数据访问 SDK：[`api/datapilot/README.md`](api/datapilot/README.md)
+- 数据源连接器清单：[`api/datapilot/handlers/README.md`](api/datapilot/handlers/README.md)
 - 测试套件：[`tests/README.md`](tests/README.md)
-- 轻量查数 UI：[`api/ezdata/interface/web/README.md`](api/ezdata/interface/web/README.md)
+- 轻量查数 UI：[`api/datapilot/interface/web/README.md`](api/datapilot/interface/web/README.md)
 - 接口文档：启动后端后访问 `/docs` 或 `/redoc`
 
 ---

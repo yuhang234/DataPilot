@@ -8,7 +8,7 @@
 - seed_demo():      先 seed_metadata 再 dispatch(整体初始化)。
 
 用法(容器内镜像无此文件,经 stdin 喂入即可,无需重建镜像):
-    docker exec -i ezdata-backend-my python - < api/demo_seed.py
+    docker exec -i datapilot-backend-my python - < api/demo_seed.py
 agent 对话出图还需配 LLM(环境变量 LLM_TYPE/LLM_MODEL/LLM_API_KEY,或 AI 模型管理建一个)。
 """
 
@@ -1256,7 +1256,7 @@ DIV_APP_CONFIG = {
     'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
-# 数据源(自包含:不依赖 ezdata.sql 的 demo 段)。(id, name, code, source_type, family, config_dict)
+# 数据源(自包含:不依赖 datapilot.sql 的 demo 段)。(id, name, code, source_type, family, config_dict)
 DATASOURCES = [
     ('seed-akshare-cn', 'AKShare 财经数据', AK, 'akshare', 'api', {}),
     (
@@ -1265,7 +1265,7 @@ DATASOURCES = [
         ES,
         'elasticsearch',
         'search',
-        {'hosts': 'http://ezdata-es:9200', 'user': 'elastic', 'password': 'ezdata123456'},
+        {'hosts': 'http://datapilot-es:9200', 'user': 'elastic', 'password': 'datapilot456'},
     ),
 ]
 
@@ -1674,7 +1674,7 @@ def rule_reason(r, fund, news_cnt, strat, sc, act):
 
 llm = None
 try:
-    from ezdata.interface.web.llm import LLMClient
+    from datapilot.interface.web.llm import LLMClient
     _c = LLMClient()
     if _c.ready:
         llm = _c
@@ -2326,7 +2326,7 @@ def seed_demo() -> None:
     if _trigger_scheduler_reload():
         print('✅ 已通知运行中的后端即时重载定时调度(无需重启)')
     else:
-        print('⚠️ 未检测到在监听的调度器,请重启后端激活:docker restart ezdata-backend-my')
+        print('⚠️ 未检测到在监听的调度器,请重启后端激活:docker restart datapilot-backend-my')
 
 
 if __name__ == '__main__':

@@ -7,13 +7,13 @@
 
 用法(在 worker 容器内跑,容器有 ES / 存储 / embedding 依赖):
   # 重建所有「与当前 env 不一致」的库(默认,已一致的跳过)
-  docker exec -i ezdata-worker-dev python -m module_rag._rebuild_embeddings
+  docker exec -i datapilot-worker-dev python -m module_rag._rebuild_embeddings
 
   # 强制重建所有库(含已一致的,会重新消耗 embedding 调用)
-  docker exec -i ezdata-worker-dev python -m module_rag._rebuild_embeddings --all
+  docker exec -i datapilot-worker-dev python -m module_rag._rebuild_embeddings --all
 
   # 只重建指定库(传 dataset id,可多个;支持 id 前缀)
-  docker exec -i ezdata-worker-dev python -m module_rag._rebuild_embeddings 9e314b89 5a923ea1
+  docker exec -i datapilot-worker-dev python -m module_rag._rebuild_embeddings 9e314b89 5a923ea1
 
 注意:删索引 + 重嵌不可逆,且消耗 embedding/总调用;文档从 file_key(对象存储)重抽,需源文件仍在。
 """

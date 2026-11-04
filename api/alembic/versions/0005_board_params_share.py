@@ -20,7 +20,7 @@ _TABLE = 'data_analysis_template'
 
 
 def upgrade() -> None:
-    # 幂等:列已存在(如从含该列的 ezdata.sql 建库)则跳过
+    # 幂等:列已存在(如从含该列的 datapilot.sql 建库)则跳过
     bind = op.get_bind()
     cols = [c['name'] for c in sa.inspect(bind).get_columns(_TABLE)]
     if 'params' not in cols:

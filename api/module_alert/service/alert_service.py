@@ -223,11 +223,11 @@ class AlertService:
     ) -> None:
         """任务失败/重试耗尽时触发告警：按任务绑定的策略(task.alert_strategy_ids)生成记录并转发
 
-        告警内容格式参考 ezdata(api/web_apps/alert/strategys/task_alert_strategys.py)。
+        告警内容格式参考 datapilot(api/web_apps/alert/strategys/task_alert_strategys.py)。
         """
         from module_task_schedule.entity.do.task_do import Task
 
-        # 任务类型映射(对齐 ezdata)
+        # 任务类型映射(对齐 datapilot)
         task_type_map = {'normal_task': '普通任务', 'dag_task': '任务工作流', 'dag_node_task': '任务工作流节点任务'}
 
         session_local = get_sync_session_local()

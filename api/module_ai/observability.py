@@ -83,7 +83,7 @@ def init_observability(app: FastAPI | None = None) -> bool:
         logger.warning(f'[otel] 已配置可观测性但缺 opentelemetry 依赖,跳过:{e}')
         return False
 
-    service = os.environ.get('OTEL_SERVICE_NAME', 'ezdata')
+    service = os.environ.get('OTEL_SERVICE_NAME', 'datapilot')
     environment = os.environ.get('OTEL_DEPLOYMENT_ENVIRONMENT') or os.environ.get('APP_ENV', 'dev')
     provider = TracerProvider(
         resource=Resource.create({'service.name': service, 'deployment.environment': environment})

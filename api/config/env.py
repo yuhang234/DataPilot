@@ -16,7 +16,7 @@ class AppSettings(BaseSettings):
     """
 
     app_env: str = 'dev'
-    app_name: str = 'ezdata'
+    app_name: str = 'DataPilot'
     app_root_path: str = '/dev-api'
     app_host: str = '0.0.0.0'
     app_port: int = 9099
@@ -144,7 +144,7 @@ class LogSettings(BaseSettings):
     loguru_retention: str = '30 days'
     loguru_compression: str = 'zip'
     log_instance_id: str = 'prod'
-    log_service_name: str = 'ezdata-backend'
+    log_service_name: str = 'datapilot-backend'
     log_worker_id: str = 'auto'
 
 
@@ -359,7 +359,7 @@ class StorageSettings(BaseSettings):
 
     # ---- S3 / MinIO ----
     s3_endpoint: str = ''
-    s3_bucket_name: str = 'ezdata'
+    s3_bucket_name: str = 'datapilot'
     s3_access_key: str = ''
     s3_secret_key: str = ''
     s3_region: str = ''
@@ -518,13 +518,13 @@ class SandboxSettings(BaseSettings):
 
     .env 示例:
         SANDBOX_ENABLED=true
-        SANDBOX_API_URL=http://ezdata-sandbox-dev:8003
+        SANDBOX_API_URL=http://datapilot-sandbox-dev:8003
         SANDBOX_BEARER_KEY=xxxx
         SANDBOX_TIMEOUT=60
     """
 
     sandbox_enabled: bool = False  # SANDBOX_ENABLED(关=本地真实跑兜底)
-    sandbox_api_url: str = 'http://ezdata-sandbox-dev:8003'  # SANDBOX_API_URL
+    sandbox_api_url: str = 'http://datapilot-sandbox-dev:8003'  # SANDBOX_API_URL
     sandbox_bearer_key: str = 'change-me'  # SANDBOX_BEARER_KEY
     sandbox_timeout: int = 60  # SANDBOX_TIMEOUT(秒)
 

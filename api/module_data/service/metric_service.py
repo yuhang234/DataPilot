@@ -125,8 +125,8 @@ def _execute(code: str, md: dict, handler, object_name: str, group_by, filters, 
 
     下推与兜底共用 _shape/_round_rows 规整,口径一致(见端到端对拍测试)。
     """
-    from ezdata.handlers.agg_spec import AggNotSupported, AggSpec
-    from ezdata.handlers.base import Capability
+    from datapilot.handlers.agg_spec import AggNotSupported, AggSpec
+    from datapilot.handlers.base import Capability
 
     if hasattr(handler, 'has') and handler.has(Capability.AGGREGATE):
         spec = AggSpec(

@@ -1,6 +1,6 @@
 """给 AI agent 的代码执行工具:在隔离沙箱里跑 Python(计算 / 数据源取数)。
 
-基于 ezdata 沙箱(无持久凭据、子进程隔离、可超时 kill),替代 agno 自带 PythonTools 的本地 exec。
+基于 datapilot 沙箱(无持久凭据、子进程隔离、可超时 kill),替代 agno 自带 PythonTools 的本地 exec。
 两个工具:
 - run_python_code:跑普通 Python 做计算/数据处理
 - run_datasource_query:对指定数据源跑取数代码(沙箱注入 handler)
@@ -220,7 +220,7 @@ class SandboxCodeTools(Toolkit):
         :param ohlc: kline 用 {"o","h","l","c"} 列映射
         :param link: sankey 用 {"source","target","value"} 列映射
         """
-        from ezdata.utils.etl_util import assert_readonly_sql
+        from datapilot.utils.etl_util import assert_readonly_sql
         from module_data import sandbox_client
 
         if self.allowed_codes is not None and datasource_code not in self.allowed_codes:

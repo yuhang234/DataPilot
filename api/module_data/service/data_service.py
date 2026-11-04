@@ -7,11 +7,10 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel
-from exceptions.exception import ServiceException
-from ezdata import prompts as ez_prompts
-from ezdata import services as ez_services
-from ezdata.handlers import Capability, create_handler, get_handler_cls
-from ezdata.utils.etl_util import (
+from datapilot import prompts as ez_prompts
+from datapilot import services as ez_services
+from datapilot.handlers import Capability, create_handler, get_handler_cls
+from datapilot.utils.etl_util import (
     assert_readonly_sql,
     is_file_target,
     json_safe_rows,
@@ -19,6 +18,7 @@ from ezdata.utils.etl_util import (
     short_err,
     stream_statement,
 )
+from exceptions.exception import ServiceException
 from module_data.dao.data_dao import (
     DashboardCanvasDao,
     DashboardDao,
@@ -236,7 +236,7 @@ class DataMetaService:
 
     @staticmethod
     def source_types() -> list[dict]:
-        # 委托 ezdata,再转 camelCase 对齐前端/接口约定(source_type -> sourceType)
+        # 委托 datapilot,再转 camelCase 对齐前端/接口约定(source_type -> sourceType)
         return [
             {
                 'sourceType': t['source_type'],
@@ -266,7 +266,7 @@ class DataSourceService:
 
     @classmethod
     async def get_list(cls, db: AsyncSession, q: DataSourceQuery, is_page: bool = False) -> Any:
-        from ezdata.handlers import get_write_modes
+        from datapilot.handlers import get_write_modes
 
         result = await DataSourceDao.get_list(db, q, is_page)
         for row in result.rows if is_page else result:
@@ -1415,14 +1415,14 @@ class EtlService:
 
     @classmethod
     async def prep_transform(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
-        """流式/一次性生成共用:解析模型配置 + 构造转换提示词(委托 ezdata.prompts)。"""
+        """流式/一次性生成共用:解析模型配置 + 构造转换提示词(委托 datapilot.prompts)。"""
         prompt = ez_prompts.build_transform_prompt(req.columns, req.question)
         cfg = await _ai_resolve_cfg(db)
         return cfg, prompt
 
     @classmethod
     async def prep_extract_code(cls, db: AsyncSession, req: Any) -> tuple[dict, str]:
-        """AI 生成取数代码(爬虫/任意取数):自然语言 → 产出 result(list[dict])的 Python(提示词委托 ezdata.prompts)。"""
+        """AI 生成取数代码(爬虫/任意取数):自然语言 → 产出 result(list[dict])的 Python(提示词委托 datapilot.prompts)。"""
         prompt = ez_prompts.build_extract_code_prompt(getattr(req, 'datasource_codes', None), req.question)
         cfg = await _ai_resolve_cfg(db)
         return cfg, prompt
@@ -1465,7 +1465,7 @@ class OpenDataService:
         from sqlalchemy import select
 
         from common.context import RequestContext
-        from ezdata.utils.query import parse_query_params
+        from datapilot.utils.query import parse_query_params
         from module_apitoken.service.api_token_service import ApiTokenService
         from module_data.entity.do.data_do import DataModel as DataModelDO
 

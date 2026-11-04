@@ -21,7 +21,7 @@ from config.env import RedisConfig
 _CKPT_REDIS_DB = int(os.environ.get('CDC_REDIS_DB') or RedisConfig.redis_database)
 _CKPT_TTL = int(os.environ.get('CDC_CKPT_TTL') or 2592000)  # 30 天
 
-_KEY_PREFIX = 'ezdata:cdc:ckpt'
+_KEY_PREFIX = 'datapilot:cdc:ckpt'
 
 _client: Any = None
 _client_inited = False

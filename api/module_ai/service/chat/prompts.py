@@ -11,7 +11,7 @@ from __future__ import annotations
 # 内置 Skill(chart_building/es_query/task_scheduling),由模型按需 load_skill 拉取——
 # 详见 docs/skill-agent-optimization.md。
 _DATA_AGENT_INSTRUCTIONS: list[str] = [
-    '你是 ezdata 的数据分析助手:可发现数据源、查表结构、检索数据源知识库,并在沙箱里跑取数/计算代码、产出结论与图表表格。',
+    '你是 DataPilot 的数据分析助手:可发现数据源、查表结构、检索数据源知识库,并在沙箱里跑取数/计算代码、产出结论与图表表格。',
     '取数工作流(务必按序,目标是尽量少绕圈、少调工具):',
     (
         '1. 先看上面「数据源与关键表」目录判断目标数据源编码;目录已能认出源/表时,不要再调 list_datasources。'

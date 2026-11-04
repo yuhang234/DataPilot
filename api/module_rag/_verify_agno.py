@@ -1,6 +1,6 @@
 """
 Agno 能力接入验证(在容器内跑,agno 仅容器有):
-  docker exec ezdata-backend-dev python -m module_rag._verify_agno
+  docker exec datapilot-backend-dev python -m module_rag._verify_agno
 覆盖:Agno readers(text/csv/json/markdown)、切分策略、EsAgnoVectorDb 全 agno 接口
       (create/insert/content_hash_exists/search[vector/keyword/hybrid]/delete/drop)。
 需 ES8 + DashScope + storage(MinIO)。
@@ -31,10 +31,10 @@ def check(label, cond, detail=''):
 def main():
     print('== 1. Agno Readers(含 pptx)==')
     cases = {
-        '.txt': 'ezdata 文本读取测试。\n'.encode() * 10,
-        '.csv': 'name,role\nezdata,平台\ndlt,抽取\n'.encode(),
-        '.json': b'{"product":"ezdata","kb":"rag"}',
-        '.md': '# 标题\n\nezdata markdown 读取。'.encode(),
+        '.txt': 'datapilot 文本读取测试。\n'.encode() * 10,
+        '.csv': 'name,role\ndatapilot,平台\ndlt,抽取\n'.encode(),
+        '.json': b'{"product":"datapilot","kb":"rag"}',
+        '.md': '# 标题\n\ndatapilot markdown 读取。'.encode(),
     }
     # 现造一个 pptx(python-pptx)
     try:
@@ -44,7 +44,7 @@ def main():
 
         prs = Presentation()
         s = prs.slides.add_slide(prs.slide_layouts[5])
-        s.shapes.title.text = 'ezdata pptx 抽取测试'
+        s.shapes.title.text = 'datapilot pptx 抽取测试'
         buf = _io.BytesIO()
         prs.save(buf)
         cases['.pptx'] = buf.getvalue()
@@ -57,9 +57,9 @@ def main():
         check(f'reader {ext}', len(txt) > 0, repr(txt[:30]))
 
     print('== 2. 切分策略(含 markdown)==')
-    md_doc = '# 平台\n\nezdata 是 AI 原生数据平台。\n\n## 福利\n\n年假15天。\n\n## 技术\n\n向量库 ES8。'
+    md_doc = '# 平台\n\ndatapilot 是 AI 原生数据平台。\n\n## 福利\n\n年假15天。\n\n## 技术\n\n向量库 ES8。'
     for s in ('recursive', 'fixed', 'semantic', 'markdown'):
-        src = md_doc if s == 'markdown' else 'ezdata 是 AI 原生数据平台。' * 40
+        src = md_doc if s == 'markdown' else 'datapilot 是 AI 原生数据平台。' * 40
         cs = chunk_text(src, strategy=s, chunk_size=200, overlap=30)
         check(f'chunk {s}', len(cs) >= 1, f'{len(cs)} 段')
 
