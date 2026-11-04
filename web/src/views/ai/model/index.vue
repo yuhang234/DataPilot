@@ -1,0 +1,542 @@
+<template>
+  <div class="app-container">
+    <el-form
+      :model="queryParams"
+      ref="queryRef"
+      :inline="true"
+      v-show="showSearch"
+    >
+      <el-form-item :label="$t('模型编码')" prop="modelCode">
+        <el-input
+          v-model="queryParams.modelCode"
+          :placeholder="$t('请输入模型编码')"
+          clearable
+          style="width: 200px"
+          @keyup.enter="handleQuery"
+        />
+      </el-form-item>
+      <el-form-item :label="$t('提供商')" prop="provider">
+        <el-select
+          v-model="queryParams.provider"
+          :placeholder="$t('请选择提供商')"
+          clearable
+          style="width: 200px"
+          @keyup.enter="handleQuery"
+        >
+          <el-option
+            v-for="dict in ai_provider_type"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item :label="$t('状态')" prop="status">
+        <el-select
+          v-model="queryParams.status"
+          :placeholder="$t('模型状态')"
+          clearable
+          style="width: 240px"
+        >
+          <el-option
+            v-for="dict in sys_normal_disable"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" icon="Search" @click="handleQuery"
+          >{{ $t('搜索') }}</el-button
+        >
+        <el-button icon="Refresh" @click="resetQuery">{{ $t('重置') }}</el-button>
+      </el-form-item>
+    </el-form>
+
+    <el-row :gutter="10" class="mb8">
+      <el-col :span="1.5">
+        <el-button
+          type="primary"
+          plain
+          icon="Plus"
+          @click="handleAdd"
+          v-hasPermi="['ai:model:add']"
+          >{{ $t('新增') }}</el-button
+        >
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="success"
+          plain
+          icon="Edit"
+          :disabled="single"
+          @click="handleUpdate"
+          v-hasPermi="['ai:model:edit']"
+          >{{ $t('修改') }}</el-button
+        >
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="danger"
+          plain
+          icon="Delete"
+          :disabled="multiple"
+          @click="handleDelete"
+          v-hasPermi="['ai:model:remove']"
+          >{{ $t('删除') }}</el-button
+        >
+      </el-col>
+      <right-toolbar
+        v-model:showSearch="showSearch"
+        @queryTable="getList"
+      ></right-toolbar>
+    </el-row>
+
+    <el-table
+      v-loading="loading"
+      :data="modelList"
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column type="selection" width="55" align="center" />
+      <el-table-column :label="$t('模型ID')" align="center" prop="modelId" />
+      <el-table-column :label="$t('模型编码')" align="center" prop="modelCode" />
+      <el-table-column :label="$t('提供商')" align="center" prop="provider">
+        <template #default="scope">
+          <dict-tag :options="ai_provider_type" :value="scope.row.provider" />
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('支持推理')" align="center" prop="supportReasoning">
+        <template #default="scope">
+          <dict-tag :options="sys_yes_no" :value="scope.row.supportReasoning" />
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('支持图片')" align="center" prop="supportImages">
+        <template #default="scope">
+          <dict-tag :options="sys_yes_no" :value="scope.row.supportImages" />
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('状态')" align="center" prop="status">
+        <template #default="scope">
+          <dict-tag :options="sys_normal_disable" :value="scope.row.status" />
+        </template>
+      </el-table-column>
+      <el-table-column
+        :label="$t('创建时间')"
+        align="center"
+        prop="createTime"
+        width="180"
+      >
+        <template #default="scope">
+          <span>{{ parseTime(scope.row.createTime) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column
+        :label="$t('操作')"
+        width="180"
+        align="center"
+        class-name="small-padding fixed-width"
+      >
+        <template #default="scope">
+          <el-button
+            link
+            type="primary"
+            icon="Connection"
+            :loading="testingId === scope.row.modelId"
+            @click="handleTest(scope.row)"
+            v-hasPermi="['ai:model:query']"
+            >{{ $t('测试') }}</el-button
+          >
+          <el-button
+            link
+            type="primary"
+            icon="Edit"
+            @click="handleUpdate(scope.row)"
+            v-hasPermi="['ai:model:edit']"
+            >{{ $t('修改') }}</el-button
+          >
+          <el-button
+            link
+            type="primary"
+            icon="Delete"
+            @click="handleDelete(scope.row)"
+            v-hasPermi="['ai:model:remove']"
+            >{{ $t('删除') }}</el-button
+          >
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <pagination
+      v-show="total > 0"
+      :total="total"
+      v-model:page="queryParams.pageNum"
+      v-model:limit="queryParams.pageSize"
+      @pagination="getList"
+    />
+
+    <!-- 添加或修改对话框 -->
+    <el-dialog :title="title" v-model="open" width="700px" append-to-body>
+      <el-form ref="modelRef" :model="form" :rules="rules" label-width="150px">
+        <el-row :gutter="10">
+          <el-col :span="12">
+            <el-form-item :label="$t('模型编码')" prop="modelCode">
+              <el-input
+                v-model="form.modelCode"
+                :placeholder="$t('请输入模型编码 (如 deepseek-r1)')"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('模型名称')" prop="modelName">
+              <el-input v-model="form.modelName" :placeholder="$t('请输入模型名称')" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('提供商')" prop="provider">
+              <el-select
+                v-model="form.provider"
+                :placeholder="$t('请选择提供商')"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="dict in ai_provider_type"
+                  :key="dict.value"
+                  :label="dict.label"
+                  :value="dict.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('模型排序')" prop="modelSort">
+              <el-input-number
+                v-model="form.modelSort"
+                :min="0"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="API Key" prop="apiKey">
+              <el-input
+                v-model="form.apiKey"
+                :placeholder="$t('请输入API Key')"
+                type="password"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="Base URL" prop="baseUrl">
+              <el-input v-model="form.baseUrl" :placeholder="$t('请输入Base URL')" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('最大输出')" prop="maxTokens">
+              <el-input-number
+                v-model="form.maxTokens"
+                :min="0"
+                style="width: 100%"
+                :placeholder="$t('最大输出')"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('默认温度')" prop="temperature">
+              <el-input-number
+                v-model="form.temperature"
+                :min="0"
+                :max="2"
+                :step="0.1"
+                :placeholder="$t('默认温度')"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('支持推理')" prop="supportReasoning">
+              <el-radio-group v-model="form.supportReasoning">
+                <el-radio
+                  v-for="dict in sys_yes_no"
+                  :key="dict.value"
+                  :value="dict.value"
+                  >{{ dict.label }}</el-radio
+                >
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('支持图片')" prop="supportImages">
+              <el-radio-group v-model="form.supportImages">
+                <el-radio
+                  v-for="dict in sys_yes_no"
+                  :key="dict.value"
+                  :value="dict.value"
+                  >{{ dict.label }}</el-radio
+                >
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('模型类型')" prop="modelType">
+              <el-input
+                v-model="form.modelType"
+                :placeholder="$t('请输入模型类型 (可选)')"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="$t('状态')" prop="status">
+              <el-radio-group v-model="form.status">
+                <el-radio
+                  v-for="dict in sys_normal_disable"
+                  :key="dict.value"
+                  :value="dict.value"
+                  >{{ dict.label }}</el-radio
+                >
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item :label="$t('备注')" prop="remark">
+              <el-input
+                v-model="form.remark"
+                type="textarea"
+                :placeholder="$t('请输入内容')"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button :loading="formTesting" @click="handleTestForm">{{ $t('测试连接') }}</el-button>
+          <el-button type="primary" @click="submitForm">{{ $t('确 定') }}</el-button>
+          <el-button @click="cancel">{{ $t('取 消') }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup name="AiModel">
+import {
+  listModel,
+  addModel,
+  delModel,
+  getModel,
+  updateModel,
+  testModel,
+} from "@/api/ai/model";
+import { ElMessageBox } from "element-plus";
+import { t as $t } from "@/lang";
+
+const { proxy } = getCurrentInstance();
+const { ai_provider_type, sys_normal_disable, sys_yes_no } = proxy.useDict(
+  "ai_provider_type",
+  "sys_normal_disable",
+  "sys_yes_no",
+);
+
+const modelList = ref([]);
+const open = ref(false);
+const loading = ref(true);
+const showSearch = ref(true);
+const ids = ref([]);
+const single = ref(true);
+const multiple = ref(true);
+const total = ref(0);
+const title = ref("");
+const testingId = ref(null); // 行内「测试」按钮 loading 的模型ID
+const formTesting = ref(false); // 弹窗「测试连接」按钮 loading
+
+const data = reactive({
+  form: {},
+  queryParams: {
+    pageNum: 1,
+    pageSize: 10,
+    modelCode: undefined,
+    provider: undefined,
+    status: undefined,
+  },
+  rules: {
+    modelCode: [
+      { required: true, message: $t("模型编码不能为空"), trigger: "blur" },
+    ],
+    provider: [
+      { required: true, message: $t("提供商不能为空"), trigger: "change" },
+    ],
+    modelSort: [
+      { required: true, message: $t("模型排序不能为空"), trigger: "blur" },
+    ],
+  },
+});
+
+const { queryParams, form, rules } = toRefs(data);
+
+/** 查询列表 */
+function getList() {
+  loading.value = true;
+  listModel(queryParams.value).then((response) => {
+    modelList.value = response.rows;
+    total.value = response.total;
+    loading.value = false;
+  });
+}
+
+/** 取消按钮 */
+function cancel() {
+  open.value = false;
+  reset();
+}
+
+/** 表单重置 */
+function reset() {
+  form.value = {
+    modelId: undefined,
+    modelCode: undefined,
+    modelName: undefined,
+    provider: undefined,
+    modelSort: 0,
+    apiKey: undefined,
+    baseUrl: undefined,
+    maxTokens: undefined,
+    temperature: undefined,
+    supportReasoning: "N",
+    supportImages: "N",
+    modelType: undefined,
+    status: "0",
+    remark: undefined,
+  };
+  proxy.resetForm("modelRef");
+}
+
+/** 搜索按钮操作 */
+function handleQuery() {
+  queryParams.value.pageNum = 1;
+  getList();
+}
+
+/** 重置按钮操作 */
+function resetQuery() {
+  proxy.resetForm("queryRef");
+  handleQuery();
+}
+
+/** 多选框选中数据 */
+function handleSelectionChange(selection) {
+  ids.value = selection.map((item) => item.modelId);
+  single.value = selection.length != 1;
+  multiple.value = !selection.length;
+}
+
+/** 新增按钮操作 */
+function handleAdd() {
+  reset();
+  open.value = true;
+  title.value = $t("添加模型");
+}
+
+/** 修改按钮操作 */
+function handleUpdate(row) {
+  reset();
+  const modelId = row.modelId || ids.value;
+  getModel(modelId).then((response) => {
+    form.value = response.data;
+    open.value = true;
+    title.value = $t("修改模型");
+  });
+}
+
+/** 提交按钮 */
+function submitForm() {
+  proxy.$refs["modelRef"].validate((valid) => {
+    if (valid) {
+      if (form.value.modelId != undefined) {
+        updateModel(form.value).then((response) => {
+          proxy.$modal.msgSuccess($t("修改成功"));
+          open.value = false;
+          getList();
+        });
+      } else {
+        addModel(form.value).then((response) => {
+          proxy.$modal.msgSuccess($t("新增成功"));
+          open.value = false;
+          getList();
+        });
+      }
+    }
+  });
+}
+
+/** 展示测试结果:成功列出时延/用量,失败弹出错误信息 */
+function showTestResult(res) {
+  const d = res && res.data ? res.data : {};
+  if (d.success) {
+    const rows = [
+      `<div>时延：<b>${d.latencyMs ?? "-"}</b> ms</div>`,
+      `<div>用量：输入 ${d.inputTokens ?? 0} / 输出 ${d.outputTokens ?? 0} / 总 ${d.totalTokens ?? 0} tokens</div>`,
+    ];
+    if (d.completionMetrics) {
+      rows.push(
+        `<div style="color:#909399;font-size:12px;margin-top:6px">已按「仅收尾采集用量」口径校正（该网关流式每块重复带累计 usage，防 token 放大）</div>`,
+      );
+    }
+    if (d.reply) {
+      rows.push(
+        `<div style="color:#909399;font-size:12px;margin-top:6px">回复：${d.reply}</div>`,
+      );
+    }
+    ElMessageBox.alert(rows.join(""), $t("连接正常"), {
+      dangerouslyUseHTMLString: true,
+      type: "success",
+      confirmButtonText: $t("确 定"),
+    });
+  } else {
+    ElMessageBox.alert(d.message || $t("连接失败"), $t("连接失败"), {
+      dangerouslyUseHTMLString: true,
+      type: "error",
+      confirmButtonText: $t("确 定"),
+    });
+  }
+}
+
+/** 行内测试：用已存模型ID测试 */
+function handleTest(row) {
+  testingId.value = row.modelId;
+  testModel({ modelId: row.modelId })
+    .then(showTestResult)
+    .catch(() => {})
+    .finally(() => {
+      testingId.value = null;
+    });
+}
+
+/** 弹窗测试：用当前表单(含未保存的新配置)测试 */
+function handleTestForm() {
+  formTesting.value = true;
+  testModel(form.value)
+    .then(showTestResult)
+    .catch(() => {})
+    .finally(() => {
+      formTesting.value = false;
+    });
+}
+
+/** 删除按钮操作 */
+function handleDelete(row) {
+  const modelIds = row.modelId || ids.value;
+  proxy.$modal
+    .confirm($t('是否确认删除模型编号为"{ids}"的数据项？', { ids: modelIds }))
+    .then(function () {
+      return delModel(modelIds);
+    })
+    .then(() => {
+      getList();
+      proxy.$modal.msgSuccess($t("删除成功"));
+    })
+    .catch(() => {});
+}
+
+getList();
+</script>

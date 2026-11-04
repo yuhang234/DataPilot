@@ -1,0 +1,84 @@
+import { defineConfig, loadEnv } from 'vite'
+import path from 'path'
+import createVitePlugins from './vite/plugins'
+
+// https://vitejs.dev/config/
+export default defineConfig(({ mode, command }) => {
+  const env = loadEnv(mode, process.cwd())
+  const { VITE_APP_ENV } = env
+  return {
+    // 部署生产环境和开发环境下的URL。
+    // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
+    // 例如 https://www.ruoyi.vip/。如果应用被部署在一个子路径上，你就需要用这个选项指定这个子路径。例如，如果你的应用被部署在 https://www.ruoyi.vip/admin/，则设置 baseUrl 为 /admin/。
+    base: VITE_APP_ENV === 'production' ? '/' : '/',
+    plugins: createVitePlugins(env, command === 'build'),
+    resolve: {
+      // https://cn.vitejs.dev/config/#resolve-alias
+      alias: {
+        // 设置路径
+        '~': path.resolve(__dirname, './'),
+        // 设置别名
+        '@': path.resolve(__dirname, './src')
+      },
+      // https://cn.vitejs.dev/config/#resolve-extensions
+      extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.vue']
+    },
+    // 打包配置
+    build: {
+      // https://vite.dev/config/build-options.html
+      sourcemap: command === 'build' ? false : 'inline',
+      outDir: 'dist',
+      assetsDir: 'assets',
+      chunkSizeWarningLimit: 2000,
+      rollupOptions: {
+        output: {
+          chunkFileNames: 'static/js/[name]-[hash].js',
+          entryFileNames: 'static/js/[name]-[hash].js',
+          assetFileNames: 'static/[ext]/[name]-[hash].[ext]'
+        }
+      }
+    },
+    // vite 相关配置
+    server: {
+      port: 80,
+      host: true,
+      open: true,
+      // Windows/Docker bind mount 收不到 inotify 事件,强制轮询以保证 HMR 生效
+      watch: { usePolling: true, interval: 300 },
+      proxy: {
+        // https://cn.vitejs.dev/config/#server-proxy
+        '/dev-api': {
+          // 代理目标可由环境变量覆盖（docker dev 下指向后端服务名），默认回退本地地址
+          target: process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:9099',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/dev-api/, '')
+        },
+        // GitHub SSO 回调走 /api（GITHUB_REDIRECT_URI 钉死在 /api），与前端自身的 /dev-api 前缀不一致。
+        // 加一条 /api 代理到同一后端，使 /api/oauth/github/callback 能被后端接住（否则落到 SPA→守卫弹回登录页）。
+        // 前端路由无 /api 前缀，不冲突。
+        '/api': {
+          target: process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:9099',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api/, '')
+        }
+      }
+    },
+    //fix:error:stdin>:7356:1: warning: "@charset" must be the first rule in the file
+    css: {
+      postcss: {
+        plugins: [
+          {
+            postcssPlugin: 'internal:charset-removal',
+            AtRule: {
+              charset: (atRule) => {
+                if (atRule.name === 'charset') {
+                  atRule.remove();
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+})
