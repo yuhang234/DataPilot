@@ -24,7 +24,9 @@ class AiSkill(Base, TenantMixin):
     content = Column(Text, nullable=True, comment='技能正文(SKILL.md,按需 load_skill 拉取)')
     resources = Column(Text, nullable=True, comment='附加文件JSON([{name,content}];name 可含 / 表目录)')
     ref_skills = Column(String(500), nullable=True, comment='引用的技能code(逗号分隔,软引用)')
-    skill_type = Column(String(20), server_default='process', comment='类型: process流程型(全局) knowledge知识型(按源浮现)')
+    skill_type = Column(
+        String(20), server_default='process', comment='类型: process流程型(全局) knowledge知识型(按源浮现)'
+    )
     datasource_codes = Column(String(500), nullable=True, comment='知识型绑定的数据源code(逗号分隔;为空=不绑)')
     status = Column(CHAR(1), server_default='0', comment='状态: 0启用 1停用')
     built_in = Column(CHAR(1), server_default='0', comment='是否内置: 1是(不可删/改code) 0否')

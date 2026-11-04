@@ -45,29 +45,36 @@ class _FakeHandler:
 
 # ---------------- SQL 族:拦截写入/DDL/多语句 ----------------
 
-@pytest.mark.parametrize('bad_sql', [
-    'DELETE FROM t WHERE 1=1',
-    'DROP TABLE t',
-    'UPDATE t SET a=1',
-    'INSERT INTO t VALUES (1)',
-    'TRUNCATE TABLE t',
-    'ALTER TABLE t ADD c int',
-    'SELECT 1; DROP TABLE t',            # 多语句堆叠
-    'select * from t into outfile "/x"',  # 导出文件
-])
+
+@pytest.mark.parametrize(
+    'bad_sql',
+    [
+        'DELETE FROM t WHERE 1=1',
+        'DROP TABLE t',
+        'UPDATE t SET a=1',
+        'INSERT INTO t VALUES (1)',
+        'TRUNCATE TABLE t',
+        'ALTER TABLE t ADD c int',
+        'SELECT 1; DROP TABLE t',  # 多语句堆叠
+        'select * from t into outfile "/x"',  # 导出文件
+    ],
+)
 def test_sql_family_blocks_writes(bad_sql):
     h = read_only(_FakeHandler('rdbms'))
     with pytest.raises(ReadOnlyViolation):
         h.query(bad_sql)
 
 
-@pytest.mark.parametrize('good_sql', [
-    'SELECT * FROM t',
-    'select a, b from t where c > 0 limit 10',
-    'WITH x AS (SELECT 1) SELECT * FROM x',
-    'SHOW TABLES',
-    'EXPLAIN SELECT 1',
-])
+@pytest.mark.parametrize(
+    'good_sql',
+    [
+        'SELECT * FROM t',
+        'select a, b from t where c > 0 limit 10',
+        'WITH x AS (SELECT 1) SELECT * FROM x',
+        'SHOW TABLES',
+        'EXPLAIN SELECT 1',
+    ],
+)
 def test_sql_family_allows_readonly(good_sql):
     inner = _FakeHandler('timeseries')
     h = read_only(inner)
@@ -76,6 +83,7 @@ def test_sql_family_allows_readonly(good_sql):
 
 
 # ---------------- 非 SQL 族 / 非字符串:天然放行 ----------------
+
 
 def test_api_family_function_name_passthrough():
     """akshare/ccxt 用函数名取数,即便像危险词也不按 SQL 校验。"""
@@ -94,6 +102,7 @@ def test_dsl_dict_passthrough(family):
 
 # ---------------- 写路径方法:一律拒绝 ----------------
 
+
 @pytest.mark.parametrize('method', ['write', 'extract', 'stream'])
 def test_write_path_methods_blocked(method):
     h = read_only(_FakeHandler('rdbms'))
@@ -102,6 +111,7 @@ def test_write_path_methods_blocked(method):
 
 
 # ---------------- 其余属性/方法透传 ----------------
+
 
 def test_passthrough_read_methods_and_attrs():
     inner = _FakeHandler('rdbms')

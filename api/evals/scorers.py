@@ -40,6 +40,7 @@ def _max_rows(trace: Any) -> int:
 
 # ---------------- 各 check ----------------
 
+
 def check_tool_ran_ok(case, trace, p) -> CheckResult:
     if trace.error:
         return CheckResult('tool_ran_ok', False, f'流级错误: {trace.error[:120]}')
@@ -132,7 +133,9 @@ def check_produced(case, trace, p) -> CheckResult:
     else:
         arts = trace.artifacts
     ok = len(arts) > 0
-    return CheckResult('produced', ok, f'{"最终产出" if ok else "未产出"} {kind or ""}产物 {len(arts)} 个(忽略中途报错)')
+    return CheckResult(
+        'produced', ok, f'{"最终产出" if ok else "未产出"} {kind or ""}产物 {len(arts)} 个(忽略中途报错)'
+    )
 
 
 def check_answer_contains(case, trace, p) -> CheckResult:

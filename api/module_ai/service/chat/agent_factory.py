@@ -377,8 +377,10 @@ def build_team(
     instructions = [
         *_DATA_AGENT_INSTRUCTIONS,
         '你是协调者:既可直接回答,也可把子任务委派给团队成员(每个成员是某领域的专家助手)。',
-        '当用户需求落在某成员专长时,用 delegate_task_to_member 委派给合适成员;'
-        '涉及多个成员时分别委派,最后综合各成员结果给出完整回答。',
+        (
+            '当用户需求落在某成员专长时,用 delegate_task_to_member 委派给合适成员;'
+            '涉及多个成员时分别委派,最后综合各成员结果给出完整回答。'
+        ),
     ]
     if (model_config.provider or '').lower() == 'anthropic':
         pass  # leader/成员模型已各自在 make_model 里禁用并行工具调用

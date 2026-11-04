@@ -11,7 +11,6 @@ from common.router import APIRouterPro
 from common.vo import PageResponseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_data.entity.vo.data_metric_vo import DataMetricModel, DataMetricQuery
-from module_data.service.metric_service import MetricService
 from module_data.entity.vo.data_vo import (
     AiQueryReq,
     AnalysisTemplateVo,
@@ -39,6 +38,7 @@ from module_data.service.data_service import (
     EtlService,
     _ai_stream,
 )
+from module_data.service.metric_service import MetricService
 from utils.response_util import ResponseUtil
 
 data_controller = APIRouterPro(prefix='/data', order_num=30, tags=['数据管理'], dependencies=[PreAuthDependency()])
@@ -146,14 +146,19 @@ async def metric_list(
     return ResponseUtil.success(model_content=await MetricService.get_list(db, q, is_page=True))
 
 
-@data_controller.get('/metric/info/{metric_id}', summary='指标详情', dependencies=[UserInterfaceAuthDependency('data:model:list')])
-async def metric_info(metric_id: Annotated[int, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
+@data_controller.get(
+    '/metric/info/{metric_id}', summary='指标详情', dependencies=[UserInterfaceAuthDependency('data:model:list')]
+)
+async def metric_info(
+    metric_id: Annotated[int, Path()], db: Annotated[AsyncSession, DBSessionDependency()]
+) -> Response:
     return ResponseUtil.success(data=await MetricService.detail(db, metric_id))
 
 
 @data_controller.post('/metric', summary='新增指标', dependencies=[UserInterfaceAuthDependency('data:model:edit')])
 async def metric_add(
-    vo: DataMetricModel, db: Annotated[AsyncSession, DBSessionDependency()],
+    vo: DataMetricModel,
+    db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     r = await MetricService.add(db, vo, current_user.user.user_name)
@@ -162,20 +167,25 @@ async def metric_add(
 
 @data_controller.put('/metric', summary='修改指标', dependencies=[UserInterfaceAuthDependency('data:model:edit')])
 async def metric_edit(
-    vo: DataMetricModel, db: Annotated[AsyncSession, DBSessionDependency()],
+    vo: DataMetricModel,
+    db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     r = await MetricService.edit(db, vo, current_user.user.user_name)
     return ResponseUtil.success(msg=r.message)
 
 
-@data_controller.delete('/metric/{ids}', summary='删除指标', dependencies=[UserInterfaceAuthDependency('data:model:remove')])
+@data_controller.delete(
+    '/metric/{ids}', summary='删除指标', dependencies=[UserInterfaceAuthDependency('data:model:remove')]
+)
 async def metric_delete(ids: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
     r = await MetricService.delete(db, ids)
     return ResponseUtil.success(msg=r.message)
 
 
-@data_controller.post('/metric/{code}/preview', summary='试跑指标', dependencies=[UserInterfaceAuthDependency('data:query')])
+@data_controller.post(
+    '/metric/{code}/preview', summary='试跑指标', dependencies=[UserInterfaceAuthDependency('data:query')]
+)
 async def metric_preview(code: Annotated[str, Path()], db: Annotated[AsyncSession, DBSessionDependency()]) -> Response:
     return ResponseUtil.success(data=await MetricService.preview(db, code))
 
@@ -409,13 +419,23 @@ async def analysis_template_from_chart(
     operator = current_user.user.user_name
     if body.get('code'):
         tid = await AnalysisTemplateService.save_from_code(
-            db, body.get('name', ''), body.get('datasourceCode', ''),
-            body['code'], body.get('question', ''), body.get('remark', ''), operator,
+            db,
+            body.get('name', ''),
+            body.get('datasourceCode', ''),
+            body['code'],
+            body.get('question', ''),
+            body.get('remark', ''),
+            operator,
         )
     else:
         tid = await AnalysisTemplateService.save_from_chart(
-            db, body.get('name', ''), body.get('datasourceCode', ''),
-            body.get('native'), body.get('chartSpec'), body.get('remark', ''), operator,
+            db,
+            body.get('name', ''),
+            body.get('datasourceCode', ''),
+            body.get('native'),
+            body.get('chartSpec'),
+            body.get('remark', ''),
+            operator,
         )
     return ResponseUtil.success(data={'id': tid}, msg='已存为看板')
 
@@ -454,7 +474,9 @@ async def analysis_template_preview_native(
 
 
 @data_controller.post(
-    '/analysis-template/{tid}/share', summary='开启/重置看板匿名分享', dependencies=[UserInterfaceAuthDependency('data:query')]
+    '/analysis-template/{tid}/share',
+    summary='开启/重置看板匿名分享',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
 )
 async def analysis_template_share(
     tid: Annotated[str, Path()],
@@ -466,7 +488,9 @@ async def analysis_template_share(
 
 
 @data_controller.delete(
-    '/analysis-template/{tid}/share', summary='关闭看板匿名分享', dependencies=[UserInterfaceAuthDependency('data:query')]
+    '/analysis-template/{tid}/share',
+    summary='关闭看板匿名分享',
+    dependencies=[UserInterfaceAuthDependency('data:query')],
 )
 async def analysis_template_unshare(
     tid: Annotated[str, Path()],
@@ -520,7 +544,8 @@ async def dashboard_save(
 
 
 @data_controller.post(
-    '/dashboard/run-code', summary='代码看板渲染(沙箱跑代码出图 HTML)',
+    '/dashboard/run-code',
+    summary='代码看板渲染(沙箱跑代码出图 HTML)',
     dependencies=[UserInterfaceAuthDependency('data:query')],
 )
 async def dashboard_run_code(
@@ -538,7 +563,8 @@ async def dashboard_run_code(
 
 
 @data_controller.post(
-    '/dashboard/ai-code/stream', summary='代码看板 AI 辅助生成绘图代码(流式)',
+    '/dashboard/ai-code/stream',
+    summary='代码看板 AI 辅助生成绘图代码(流式)',
     dependencies=[UserInterfaceAuthDependency('data:query')],
 )
 async def dashboard_ai_code_stream(

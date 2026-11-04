@@ -35,5 +35,9 @@ class DataAccessLog(Base):
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True, comment='失败原因')
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True, comment='链路追踪ID')
     request_path: Mapped[str | None] = mapped_column(String(255), nullable=True, comment='HTTP 路径')
-    source: Mapped[str | None] = mapped_column(String(20), nullable=True, server_default='web', comment='web/api/agent/task')
-    access_time: Mapped[datetime | None] = mapped_column(default=datetime.now, nullable=True, index=True, comment='访问时间')
+    source: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, server_default='web', comment='web/api/agent/task'
+    )
+    access_time: Mapped[datetime | None] = mapped_column(
+        default=datetime.now, nullable=True, index=True, comment='访问时间'
+    )

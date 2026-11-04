@@ -40,7 +40,9 @@ def _resolve_otlp_target() -> tuple[str, dict[str, str]] | None:
     generic = os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT')
 
     if pub and sec:
-        base = (os.environ.get('LANGFUSE_BASE_URL') or os.environ.get('LANGFUSE_HOST') or 'https://cloud.langfuse.com').rstrip('/')
+        base = (
+            os.environ.get('LANGFUSE_BASE_URL') or os.environ.get('LANGFUSE_HOST') or 'https://cloud.langfuse.com'
+        ).rstrip('/')
         endpoint = f'{base}/api/public/otel/v1/traces'
         auth = base64.b64encode(f'{pub}:{sec}'.encode()).decode()
         return endpoint, {'Authorization': f'Basic {auth}'}

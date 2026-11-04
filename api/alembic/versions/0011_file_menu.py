@@ -43,9 +43,24 @@ def upgrade() -> None:
                 'VALUES (:mid,:name,:pid,:onum,:path,:comp,:q,:rn,:iff,:ic,:mtype,:vis,:st,:perms,:icon,:cb,:ct,:rk)'
             ),
             {
-                'mid': mid, 'name': name, 'pid': pid, 'onum': onum, 'path': path, 'comp': comp, 'q': '', 'rn': '',
-                'iff': 1, 'ic': 0, 'mtype': mtype, 'vis': '0', 'st': '0', 'perms': perms, 'icon': icon,
-                'cb': 'admin', 'ct': now, 'rk': '文件管理',
+                'mid': mid,
+                'name': name,
+                'pid': pid,
+                'onum': onum,
+                'path': path,
+                'comp': comp,
+                'q': '',
+                'rn': '',
+                'iff': 1,
+                'ic': 0,
+                'mtype': mtype,
+                'vis': '0',
+                'st': '0',
+                'perms': perms,
+                'icon': icon,
+                'cb': 'admin',
+                'ct': now,
+                'rk': '文件管理',
             },
         )
 

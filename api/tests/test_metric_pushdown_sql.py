@@ -30,8 +30,13 @@ _ROWS = [
 
 def _norm(rows):
     """归一为可比较集合:数值 round(4),其余转 str;忽略行序与列序。"""
+
     def cell(v):
-        return round(float(v), 4) if isinstance(v, (int, float)) and not isinstance(v, bool) else (None if v is None else str(v))
+        return (
+            round(float(v), 4)
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+            else (None if v is None else str(v))
+        )
 
     return sorted(tuple(sorted((k, cell(v)) for k, v in r.items())) for r in rows)
 
@@ -95,8 +100,13 @@ _SQL_CASES = [
 def test_sql_pushdown_matches_pandas(sqlite_handler, measure, group_by, filters, time_range, top_n):
     md = _md(measure, dimensions=group_by, time_field='dt')
     spec = AggSpec(
-        table='trades', measure=measure, group_by=list(group_by),
-        filters=filters or {}, time_field='dt', time_range=time_range, top_n=top_n,
+        table='trades',
+        measure=measure,
+        group_by=list(group_by),
+        filters=filters or {},
+        time_field='dt',
+        time_range=time_range,
+        top_n=top_n,
     )
     pushed = M._shape('m', md, sqlite_handler.aggregate(spec))['rows']
 

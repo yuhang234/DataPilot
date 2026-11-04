@@ -28,7 +28,9 @@ def upgrade() -> None:
     if 'refresh_interval' not in cols:
         op.add_column(
             _TABLE,
-            sa.Column('refresh_interval', sa.Integer(), nullable=True, server_default='0', comment='自动刷新间隔(秒,0=不刷新)'),
+            sa.Column(
+                'refresh_interval', sa.Integer(), nullable=True, server_default='0', comment='自动刷新间隔(秒,0=不刷新)'
+            ),
         )
     if 'share_token' not in cols:
         op.add_column(_TABLE, sa.Column('share_token', sa.String(length=64), nullable=True, comment='匿名分享令牌'))

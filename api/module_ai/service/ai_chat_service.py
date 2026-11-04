@@ -382,4 +382,3 @@ class AiChatService:
 
     # —— Recipe 收藏:实现在 chat.recipe_fastpath,此处委派以保持公开 API(controller 调用面)不变 ——
     save_recipe_services = staticmethod(recipe_fastpath.save_recipe_services)
-

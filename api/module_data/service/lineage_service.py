@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 from collections import deque
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,12 +35,18 @@ class LineageService:
             return nid
 
         # 数据源
-        for code, name, stype in (await db.execute(select(DataSource.code, DataSource.name, DataSource.source_type))).all():
+        for code, name, stype in (
+            await db.execute(select(DataSource.code, DataSource.name, DataSource.source_type))
+        ).all():
             add_node('datasource', code, name or code, source_type=stype)
         # 模型(建 (datasource_code, object_name) → model 查找)
         model_by_obj: dict[tuple, str] = {}
         for mid, name, dc, obj in (
-            await db.execute(select(DataModel.id, DataModel.name, DataModel.datasource_code, DataModel.object_name).where(DataModel.status == 1))
+            await db.execute(
+                select(DataModel.id, DataModel.name, DataModel.datasource_code, DataModel.object_name).where(
+                    DataModel.status == 1
+                )
+            )
         ).all():
             if not obj:
                 continue
@@ -67,7 +72,9 @@ class LineageService:
                 edges.append({'source': _nid('datasource', sc), 'target': _nid('task', tid), 'label': '抽取'})
         # 指标:模型 → 指标
         for code, name, mid in (
-            await db.execute(select(DataMetric.code, DataMetric.name, DataMetric.model_id).where(DataMetric.status == '0'))
+            await db.execute(
+                select(DataMetric.code, DataMetric.name, DataMetric.model_id).where(DataMetric.status == '0')
+            )
         ).all():
             add_node('metric', code, name or code, model_id=mid)
             if mid and _nid('model', mid) in nodes:

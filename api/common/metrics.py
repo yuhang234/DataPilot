@@ -9,20 +9,14 @@
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 # —— HTTP ——
-http_requests_total = Counter(
-    'ezdata_http_requests_total', 'HTTP 请求数', ['method', 'path', 'status']
-)
+http_requests_total = Counter('ezdata_http_requests_total', 'HTTP 请求数', ['method', 'path', 'status'])
 http_request_duration_seconds = Histogram(
     'ezdata_http_request_duration_seconds', 'HTTP 请求耗时(秒)', ['method', 'path']
 )
 
 # —— Celery ——
-celery_task_total = Counter(
-    'ezdata_celery_task_total', 'Celery 任务计数', ['name', 'status']
-)
-celery_task_duration_seconds = Histogram(
-    'ezdata_celery_task_duration_seconds', 'Celery 任务耗时(秒)', ['name']
-)
+celery_task_total = Counter('ezdata_celery_task_total', 'Celery 任务计数', ['name', 'status'])
+celery_task_duration_seconds = Histogram('ezdata_celery_task_duration_seconds', 'Celery 任务耗时(秒)', ['name'])
 
 # —— 运行时 Gauge(抓取时现算) ——
 db_pool_checked_out = Gauge('ezdata_db_pool_checked_out', '数据库连接池已借出连接数')
@@ -62,8 +56,11 @@ def _refresh_runtime() -> None:
         if RedisConfig.redis_password:
             auth = {'username': RedisConfig.redis_username or None, 'password': RedisConfig.redis_password}
         r = redis.Redis(
-            host=RedisConfig.redis_host, port=RedisConfig.redis_port,
-            db=CeleryConfig.celery_redis_database, socket_timeout=2, **auth,
+            host=RedisConfig.redis_host,
+            port=RedisConfig.redis_port,
+            db=CeleryConfig.celery_redis_database,
+            socket_timeout=2,
+            **auth,
         )
         for q in CeleryConfig.queue_list:
             try:

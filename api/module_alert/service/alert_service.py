@@ -253,9 +253,14 @@ class AlertService:
                 'exception_line': exception_line,
             }
             cls.dispatch_task_alert(
-                db, task,
+                db,
+                task,
                 title=f'任务执行失败: {task.name}',
-                content=content, biz='scheduler', source=task.name, metric='task_fail', tags=tags,
+                content=content,
+                biz='scheduler',
+                source=task.name,
+                metric='task_fail',
+                tags=tags,
             )
         except Exception as e:
             loguru_logger.error(f'处理任务失败告警异常: {e}')

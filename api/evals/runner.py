@@ -32,11 +32,14 @@ def _score(case: EvalCase, trace: Trace, error: str | None = None) -> RunResult:
 
 # ---------------- replay ----------------
 
+
 def run_case_replay(case: EvalCase) -> CaseResult:
     cr = CaseResult(case_id=case.id, tags=case.tags, model_id=case.model_id)
     fixtures = case.fixtures or _autodiscover_fixtures(case.id)
     if not fixtures:
-        cr.runs.append(RunResult(checks=[], error=f'无 fixture 可回放(cases/ 里给 fixtures 或放 fixtures/{case.id}.run*.jsonl)'))
+        cr.runs.append(
+            RunResult(checks=[], error=f'无 fixture 可回放(cases/ 里给 fixtures 或放 fixtures/{case.id}.run*.jsonl)')
+        )
         return cr
     for fx in fixtures:
         path = fx if os.path.isabs(fx) else os.path.join(FIXTURES_DIR, fx)
@@ -50,10 +53,12 @@ def run_case_replay(case: EvalCase) -> CaseResult:
 
 def _autodiscover_fixtures(case_id: str) -> list[str]:
     import glob
+
     return sorted(os.path.basename(p) for p in glob.glob(os.path.join(FIXTURES_DIR, f'{case_id}.run*.jsonl')))
 
 
 # ---------------- live ----------------
+
 
 async def _live_once(case: EvalCase, user_id: int, record_path: str | None) -> tuple[Trace, str | None]:
     """实跑一次:调 chat_services 排空 SSE。重依赖在函数内 import,避免 replay/测试引入整个 app。"""
@@ -65,9 +70,14 @@ async def _live_once(case: EvalCase, user_id: int, record_path: str | None) -> t
         return Trace(), f'导入 app 失败(live 需完整后端环境): {type(e).__name__}: {e}'
 
     # AiChatRequestModel 用 to_camel 别名,须按别名构造(modelId/sessionId/appId)
-    req = AiChatRequestModel.model_validate({
-        'sessionId': None, 'modelId': case.model_id, 'message': case.question, 'appId': case.app_id,
-    })
+    req = AiChatRequestModel.model_validate(
+        {
+            'sessionId': None,
+            'modelId': case.model_id,
+            'message': case.question,
+            'appId': case.app_id,
+        }
+    )
     lines: list[str] = []
     try:
         async with AsyncSessionLocal() as db:
@@ -114,6 +124,7 @@ async def run_case_live(
 
 # ---------------- 统一入口 ----------------
 
+
 def run_all_replay(cases: list[EvalCase]) -> list[CaseResult]:
     return [run_case_replay(c) for c in cases]
 
@@ -126,7 +137,4 @@ async def run_all_live(
     model_id: int | None = None,
     app_id: str | None = None,
 ) -> list[CaseResult]:
-    return [
-        await run_case_live(c, user_id, record, record_dir, model_id, app_id)
-        for c in cases
-    ]
+    return [await run_case_live(c, user_id, record, record_dir, model_id, app_id) for c in cases]

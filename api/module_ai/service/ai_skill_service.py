@@ -15,7 +15,11 @@ class AiSkillService:
 
     @classmethod
     async def get_ai_skill_list_services(
-        cls, query_db: AsyncSession, query_object: AiSkillPageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
+        cls,
+        query_db: AsyncSession,
+        query_object: AiSkillPageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> PageModel | list[dict[str, Any]]:
         return await AiSkillDao.get_ai_skill_list(query_db, query_object, data_scope_sql, is_page)
 
@@ -55,7 +59,9 @@ class AiSkillService:
             raise e
 
     @classmethod
-    async def delete_ai_skill_services(cls, query_db: AsyncSession, page_object: DeleteAiSkillModel) -> CrudResponseModel:
+    async def delete_ai_skill_services(
+        cls, query_db: AsyncSession, page_object: DeleteAiSkillModel
+    ) -> CrudResponseModel:
         if not page_object.skill_ids:
             raise ServiceException(message='传入技能id为空')
         try:

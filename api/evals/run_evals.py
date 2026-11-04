@@ -31,8 +31,12 @@ def main() -> int:
     ap.add_argument('--cases', default=None, help='用例文件(默认扫 evals/cases/*.yaml)')
     ap.add_argument('--out', default=None, help='markdown 报告输出路径(默认打印到 stdout)')
     ap.add_argument('--label', default=None, help='配置标签(A/B 时区分,如 opus / qwen / prompt-v2)')
-    ap.add_argument('--model-id', type=int, default=None,
-                    help='覆盖所有用例的模型(0=环境兜底模型;>0=ai_model 表里的模型 id)。换弱模型跑就用它')
+    ap.add_argument(
+        '--model-id',
+        type=int,
+        default=None,
+        help='覆盖所有用例的模型(0=环境兜底模型;>0=ai_model 表里的模型 id)。换弱模型跑就用它',
+    )
     ap.add_argument('--app-id', default=None, help='覆盖所有用例的应用 id(空串=清空)')
     ap.add_argument('--user-id', type=int, default=1, help='live 模式的用户 id')
     ap.add_argument('--no-record', action='store_true', help='live 模式不录制 fixtures')
@@ -49,22 +53,37 @@ def main() -> int:
         label = args.label or (f'model-{args.model_id}' if args.model_id is not None else 'live')
         # 录制按标签分目录,避免强/弱模型 A/B 时互相覆盖
         record_dir = os.path.join(FIXTURES_DIR, label)
-        results = asyncio.run(run_all_live(
-            cases, user_id=args.user_id, record=not args.no_record,
-            record_dir=record_dir, model_id=args.model_id, app_id=args.app_id,
-        ))
+        results = asyncio.run(
+            run_all_live(
+                cases,
+                user_id=args.user_id,
+                record=not args.no_record,
+                record_dir=record_dir,
+                model_id=args.model_id,
+                app_id=args.app_id,
+            )
+        )
     else:
         results = run_all_replay(cases)
         label = args.label or 'replay'
 
     if args.json_out:
         os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
-        payload = {'label': label, 'cases': [
-            {'case_id': r.case_id, 'tags': r.tags, 'model_id': r.model_id,
-             'pass_runs': r.pass_runs, 'n': r.n, 'avg_tool_calls': round(r.avg_tool_calls, 2),
-             'checks': {k: list(v) for k, v in r.check_pass_rate().items()}}
-            for r in results
-        ]}
+        payload = {
+            'label': label,
+            'cases': [
+                {
+                    'case_id': r.case_id,
+                    'tags': r.tags,
+                    'model_id': r.model_id,
+                    'pass_runs': r.pass_runs,
+                    'n': r.n,
+                    'avg_tool_calls': round(r.avg_tool_calls, 2),
+                    'checks': {k: list(v) for k, v in r.check_pass_rate().items()},
+                }
+                for r in results
+            ],
+        }
         with open(args.json_out, 'w', encoding='utf-8') as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
         print(f'结果摘要已写入 {args.json_out}')

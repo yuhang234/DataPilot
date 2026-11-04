@@ -3,6 +3,7 @@
 
 运行:docker exec ezdata-backend-dev python sql/seed_code_boards.py
 """
+
 import asyncio
 import logging
 import os
@@ -15,7 +16,7 @@ BOARDS = [
     {
         'name': '示例·行业涨幅 Top10(代码看板)',
         'ds': 'demo_es',
-        'code': '''
+        'code': """
 from pyecharts.charts import Bar
 from pyecharts import options as opts
 rows = handler.query({'index': 'fin_industry_summary', 'body': {'size': 200, 'query': {'match_all': {}}}}, None, 200)
@@ -30,12 +31,12 @@ c = (Bar()
      .set_global_opts(title_opts=opts.TitleOpts(title='行业涨幅 Top10'),
                       xaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(rotate=30))))
 result = {'type': 'html', 'value': c.render_embed()}
-''',
+""",
     },
     {
         'name': '示例·行业资金净流入 Top10(代码看板)',
         'ds': 'demo_es',
-        'code': '''
+        'code': """
 from pyecharts.charts import Bar
 from pyecharts import options as opts
 rows = handler.query({'index': 'fin_industry_summary', 'body': {'size': 200, 'query': {'match_all': {}}}}, None, 200)
@@ -51,12 +52,12 @@ c = (Bar()
      .set_series_opts(label_opts=opts.LabelOpts(position='right'))
      .set_global_opts(title_opts=opts.TitleOpts(title='行业资金净流入 Top10')))
 result = {'type': 'html', 'value': c.render_embed()}
-''',
+""",
     },
     {
         'name': '示例·行业内涨跌家数占比(代码看板)',
         'ds': 'demo_es',
-        'code': '''
+        'code': """
 from pyecharts.charts import Pie
 from pyecharts import options as opts
 rows = handler.query({'index': 'fin_industry_summary', 'body': {'size': 200, 'query': {'match_all': {}}}}, None, 200)
@@ -67,7 +68,7 @@ c = (Pie()
      .set_global_opts(title_opts=opts.TitleOpts(title='行业内涨跌家数占比'))
      .set_series_opts(label_opts=opts.LabelOpts(formatter='{b}: {c} ({d}%)')))
 result = {'type': 'html', 'value': c.render_embed()}
-''',
+""",
     },
 ]
 
@@ -80,13 +81,16 @@ async def main():
     async with AsyncSessionLocal() as db:
         for b in BOARDS:
             vo = DashboardVo(
-                name=b['name'], dash_type='code', remark='代码看板示例种子',
-                refresh_interval=0, canvas={'mode': 'single'},
+                name=b['name'],
+                dash_type='code',
+                remark='代码看板示例种子',
+                refresh_interval=0,
+                canvas={'mode': 'single'},
                 components=[{'id': 'c1', 'type': 'code', 'inline': {'datasourceCode': b['ds'], 'code': b['code']}}],
                 filters=[],
             )
             did = await DashboardService.save(db, vo, 'admin')
-            print(f"[seed] {b['name']} -> id={did}")
+            print(f'[seed] {b["name"]} -> id={did}')
 
 
 if __name__ == '__main__':

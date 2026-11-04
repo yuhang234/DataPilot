@@ -19,7 +19,12 @@ from ezdata.handlers.base import Capability, Column, Connector, ConnectResult
 class SqlConnector(Connector):
     family = 'rdbms'
     capabilities = (
-        Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API | Capability.AGGREGATE
+        Capability.READ
+        | Capability.WRITE
+        | Capability.EXTRACT
+        | Capability.SCHEMA
+        | Capability.GEN_API
+        | Capability.AGGREGATE
     )
     write_modes = ('append', 'replace', 'merge')  # dlt write_disposition;merge 需 id_field 作主键
     driver: str = ''  # SQLAlchemy driver 前缀,如 'mysql+pymysql'

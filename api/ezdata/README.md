@@ -45,23 +45,26 @@ services.connection_schema('mysql')
 # 直接访问(入参 = 源描述;明文 secrets)
 cfg = {'host': '127.0.0.1', 'port': 3306, 'user': 'root', 'database': 'demo'}
 sec = {'password': '***'}
-services.test_connection('mysql', cfg, sec)          # {'success': True, ...}
+services.test_connection('mysql', cfg, sec)  # {'success': True, ...}
 services.list_tables('mysql', cfg, sec)
 services.get_columns('mysql', cfg, sec, table='users')
 services.query('mysql', cfg, sec, statement='SELECT * FROM users LIMIT 10')  # 只读护栏
 
 # 依赖诊断 / 安装(连接器的 requirements)
 from ezdata.services import dependencies
-dependencies.status('mysql')                          # {'requirements', 'missing', 'ready'}
-dependencies.install('mysql')                         # 当前解释器 pip 装缺失驱动
+
+dependencies.status('mysql')  # {'requirements', 'missing', 'ready'}
+dependencies.install('mysql')  # 当前解释器 pip 装缺失驱动
 
 # NL → 查询语句(提示词构造;LLM 调用由调用方负责)
 from ezdata.services import prompts
+
 h = services.get_handler('mysql', cfg, sec)
 prompt = prompts.build_query_prompt(h, ['users'], '统计每个城市的用户数')
 
 # 宿主要传密文 secrets 时(如从库里取到的 AES 密文)
 from ezdata.services import secrets
+
 secrets.set_decryptor(lambda ciphertext: my_decrypt(ciphertext))
 ```
 

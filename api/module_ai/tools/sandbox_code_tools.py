@@ -18,11 +18,33 @@ from agno.tools import Toolkit
 _ROW_CAP = 500  # 表格/图表产物最多回传行数(避免大表撑爆传输;LLM 文本摘要已含总数)
 _CHART_ROW_CAP = 5000  # plot_chart 查询取数上限(引导聚合查询,结果通常很小)
 # 与 EchartsBuilder / 后端 _normalize_chart_cfg 对齐(此处轻量构造,存看板时后端再规整)
-_CHART_TYPES = frozenset({
-    'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
-    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kline',
-    'combo', 'waterfall', 'heatmap', 'boxplot', 'treemap', 'sankey', 'kpi', 'table',
-})
+_CHART_TYPES = frozenset(
+    {
+        'bar',
+        'bar_stack',
+        'bar_percent',
+        'hbar',
+        'line',
+        'area',
+        'line_stack',
+        'pie',
+        'donut',
+        'rose',
+        'scatter',
+        'radar',
+        'funnel',
+        'gauge',
+        'kline',
+        'combo',
+        'waterfall',
+        'heatmap',
+        'boxplot',
+        'treemap',
+        'sankey',
+        'kpi',
+        'table',
+    }
+)
 _CHART_AGGS = frozenset({'sum', 'avg', 'count', 'max', 'min', 'none'})
 
 
@@ -45,8 +67,17 @@ def _coerce_ys(ys: Any) -> list[dict]:
     return norm or [{'field': '', 'agg': 'none'}]
 
 
-def _chart_cfg(chart_type: str, x: str, ys: list | None, series: str, sort: dict | None,
-               top_n: int, title: str, ohlc: dict | None = None, link: dict | None = None) -> dict:
+def _chart_cfg(
+    chart_type: str,
+    x: str,
+    ys: list | None,
+    series: str,
+    sort: dict | None,
+    top_n: int,
+    title: str,
+    ohlc: dict | None = None,
+    link: dict | None = None,
+) -> dict:
     """把 plot_chart 入参组成 EchartsBuilder cfg(schema 与前端一致)。"""
     norm_ys = _coerce_ys(ys)
     s = sort if isinstance(sort, dict) else {}
@@ -225,13 +256,15 @@ class SandboxCodeTools(Toolkit):
         if not isinstance(rows, list):
             rows = []
         cfg = _chart_cfg(chart_type, x, ys, series, sort, top_n, title, ohlc, link)
-        self.artifacts.append({
-            'kind': 'echart',
-            'cfg': cfg,
-            'rows': rows[:_ROW_CAP],
-            'total': len(rows),
-            'saveable': {'datasourceCode': datasource_code, 'native': stmt, 'chartSpec': cfg, 'title': title},
-        })
+        self.artifacts.append(
+            {
+                'kind': 'echart',
+                'cfg': cfg,
+                'rows': rows[:_ROW_CAP],
+                'total': len(rows),
+                'saveable': {'datasourceCode': datasource_code, 'native': stmt, 'chartSpec': cfg, 'title': title},
+            }
+        )
         dims = ', '.join([x] + ([series] if series else [])) or '(无)'
         if cfg['type'] == 'kline':
             o = cfg.get('ohlc') or {}
@@ -314,14 +347,31 @@ def _lint_native(stmt: Any, source_type: str | None) -> str | None:
     """出图 dry-run 轻校验:进沙箱前 catch 最高频的「查询语句与源类型不匹配」(如给 akshare/ES 写 SQL、
     给 SQL 源传 dict),直接返回纠错提示、省一整轮失败往返。通过返回 None。"""
     st = (source_type or '').lower()
-    sql_family = ('mysql', 'postgres', 'clickhouse', 'doris', 'starrocks', 'oracle', 'mssql',
-                  'sqlserver', 'sqlite', 'tidb', 'mariadb', 'oceanbase', 'greenplum', 'rdbms', 'sql')
+    sql_family = (
+        'mysql',
+        'postgres',
+        'clickhouse',
+        'doris',
+        'starrocks',
+        'oracle',
+        'mssql',
+        'sqlserver',
+        'sqlite',
+        'tidb',
+        'mariadb',
+        'oceanbase',
+        'greenplum',
+        'rdbms',
+        'sql',
+    )
     is_sql_src = any(x in st for x in sql_family)
     if isinstance(stmt, str):
         head = stmt.lstrip().lower()
-        if (head.startswith('select') or head.startswith('with')) and st and not is_sql_src:
-            return (f'该数据源类型为「{source_type}」,不接受 SQL 语句;请传该源原生查询'
-                    '(ES 用 DSL dict、Mongo 用 pipeline dict、akshare 等用「函数名」+参数——先 get_table_schema 查用法)。')
+        if (head.startswith(('select', 'with'))) and st and not is_sql_src:
+            return (
+                f'该数据源类型为「{source_type}」,不接受 SQL 语句;请传该源原生查询'
+                '(ES 用 DSL dict、Mongo 用 pipeline dict、akshare 等用「函数名」+参数——先 get_table_schema 查用法)。'
+            )
     elif isinstance(stmt, dict) and is_sql_src:
         return f'该数据源类型为「{source_type}」(SQL 源),native 应传 SQL 字符串,而不是 dict。'
     return None

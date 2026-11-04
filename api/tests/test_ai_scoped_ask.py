@@ -36,9 +36,7 @@ def test_prep_ask_uses_fields_cache(monkeypatch) -> None:
 
 def test_prep_ask_falls_back_to_get_columns(monkeypatch) -> None:
     """fields 缓存为空时,实时 get_columns 兜底取列。"""
-    m = types.SimpleNamespace(
-        datasource_code='es_demo', object_name='idx_daily', name='日线', fields=[], remark=''
-    )
+    m = types.SimpleNamespace(datasource_code='es_demo', object_name='idx_daily', name='日线', fields=[], remark='')
 
     class _Handler:
         def get_columns(self, table):

@@ -32,8 +32,11 @@ def build(files: list[dict]) -> str:
             if c['case_id'] not in case_ids:
                 case_ids.append(c['case_id'])
 
-    lines = ['# A/B 对比\n', '| 用例 | ' + ' | '.join(labels) + ' | Δ vs 基线 |',
-             '|---|' + '|'.join(['---'] * len(labels)) + '|---|']
+    lines = [
+        '# A/B 对比\n',
+        '| 用例 | ' + ' | '.join(labels) + ' | Δ vs 基线 |',
+        '|---|' + '|'.join(['---'] * len(labels)) + '|---|',
+    ]
     for cid in case_ids:
         cells, base, last = [], None, None
         for i, mp in enumerate(idx):

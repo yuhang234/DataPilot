@@ -87,7 +87,13 @@ _writer = _AuditWriter()
 
 def _capture_context() -> dict[str, Any]:
     """在请求线程读取 user/tenant/trace(刷盘线程无这些 contextvar)。"""
-    ctx: dict[str, Any] = {'tenant_id': None, 'user_id': None, 'user_name': None, 'trace_id': None, 'request_path': None}
+    ctx: dict[str, Any] = {
+        'tenant_id': None,
+        'user_id': None,
+        'user_name': None,
+        'trace_id': None,
+        'request_path': None,
+    }
     try:
         from common.context import RequestContext
 
@@ -108,7 +114,7 @@ def _capture_context() -> dict[str, Any]:
     return ctx
 
 
-class audit:  # noqa: N801 - 作上下文管理器用,小写更贴近 with 语义
+class audit:
     """数据访问审计上下文管理器:进入记时+捕获上下文,退出补行数/成败并入队。"""
 
     def __init__(
@@ -150,7 +156,7 @@ class audit:  # noqa: N801 - 作上下文管理器用,小写更贴近 with 语�
             self._rec['exec_ms'] = int((time.monotonic() - self._t0) * 1000)
             self._rec['result_rows'] = self.rows
             self._rec['success'] = 0 if exc_type is not None else 1
-            self._rec['error_msg'] = (str(exc)[:1000] if exc is not None else None)
+            self._rec['error_msg'] = str(exc)[:1000] if exc is not None else None
             self._rec['access_time'] = datetime.now()
             _writer.enqueue(dict(self._rec))
         except Exception as e:

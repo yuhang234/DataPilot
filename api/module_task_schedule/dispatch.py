@@ -77,8 +77,11 @@ def run_dag(dag_task_id: Any, source: str = 'published') -> str | None:
     from config.celery_app import celery_app
 
     async_result = celery_app.send_task(
-        'module_task_schedule.run_dag', args=[dag_task_id, source], queue=queue,
-        headers=_trace_headers(), **_timeout_opts(timeout)
+        'module_task_schedule.run_dag',
+        args=[dag_task_id, source],
+        queue=queue,
+        headers=_trace_headers(),
+        **_timeout_opts(timeout),
     )
     loguru_logger.info(f'DAG 已投递: dag={dag_task_id} source={source} queue={queue} run={async_result.id}')
     return async_result.id
@@ -92,7 +95,9 @@ def run_single_node(dag_task_id: Any, node_key: str, source: str = 'draft') -> s
     from config.celery_app import celery_app
 
     async_result = celery_app.send_task(
-        'module_task_schedule.run_single_node', args=[dag_task_id, node_key, source], queue=queue,
+        'module_task_schedule.run_single_node',
+        args=[dag_task_id, node_key, source],
+        queue=queue,
         headers=_trace_headers(),
     )
     return async_result.id

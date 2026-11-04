@@ -42,7 +42,9 @@ async def get_ai_skill_list(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiSkill)],
 ) -> Response:
-    result = await AiSkillService.get_ai_skill_list_services(query_db, ai_skill_page_query, data_scope_sql, is_page=True)
+    result = await AiSkillService.get_ai_skill_list_services(
+        query_db, ai_skill_page_query, data_scope_sql, is_page=True
+    )
     logger.info('获取成功')
     return ResponseUtil.success(model_content=result)
 

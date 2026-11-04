@@ -16,7 +16,7 @@ from evals.scorers import CheckResult
 class RunResult:
     checks: list[CheckResult]
     error: str | None = None  # 该次运行本身失败(runner 层)
-    tool_calls: int = 0       # 该次运行的工具调用数(看弱模型循环有没有被压住)
+    tool_calls: int = 0  # 该次运行的工具调用数(看弱模型循环有没有被压住)
 
     @property
     def all_passed(self) -> bool:
@@ -73,8 +73,7 @@ def build_report(results: list[CaseResult], config_label: str = 'default') -> st
 
     lines: list[str] = []
     lines.append(f'# Agent 评测报告 — `{config_label}`\n')
-    lines.append(f'- 用例数: **{n_cases}**　总跑数: **{total_runs}**　'
-                 f'整体通过率: **{overall:.0%}** {_bar(overall)}\n')
+    lines.append(f'- 用例数: **{n_cases}**　总跑数: **{total_runs}**　整体通过率: **{overall:.0%}** {_bar(overall)}\n')
 
     # 用例明细
     lines.append('## 用例明细(稳定性 = 全 check 通过率)\n')
@@ -82,9 +81,11 @@ def build_report(results: list[CaseResult], config_label: str = 'default') -> st
     lines.append('|---|---|---|---|---|---|---|')
     for r in sorted(results, key=lambda x: x.pass_rate):
         worst = ', '.join(r.worst_checks()) or '—'
-        lines.append(f'| `{r.case_id}` | {",".join(r.tags) or "—"} | {r.model_id} | '
-                     f'{r.pass_runs}/{r.n} ({r.pass_rate:.0%}) | {_bar(r.pass_rate)} | '
-                     f'{r.avg_tool_calls:.1f} | {worst} |')
+        lines.append(
+            f'| `{r.case_id}` | {",".join(r.tags) or "—"} | {r.model_id} | '
+            f'{r.pass_runs}/{r.n} ({r.pass_rate:.0%}) | {_bar(r.pass_rate)} | '
+            f'{r.avg_tool_calls:.1f} | {worst} |'
+        )
     lines.append('')
 
     # check 级明细
@@ -100,7 +101,7 @@ def build_report(results: list[CaseResult], config_label: str = 'default') -> st
     # 按标签
     by_tag: dict[str, list[float]] = {}
     for r in results:
-        for tag in (r.tags or ['(untagged)']):
+        for tag in r.tags or ['(untagged)']:
             by_tag.setdefault(tag, []).append(r.pass_rate)
     lines.append('## 按标签\n')
     lines.append('| 标签 | 用例数 | 平均通过率 |')
@@ -137,8 +138,7 @@ def build_compare(results_by_config: dict[str, list[CaseResult]]) -> str:
                 case_ids.append(r.case_id)
     idx = {cfg: {r.case_id: r for r in rs} for cfg, rs in results_by_config.items()}
 
-    lines = ['# A/B 对比\n', '| 用例 | ' + ' | '.join(configs) + ' |',
-             '|---|' + '|'.join(['---'] * len(configs)) + '|']
+    lines = ['# A/B 对比\n', '| 用例 | ' + ' | '.join(configs) + ' |', '|---|' + '|'.join(['---'] * len(configs)) + '|']
     for cid in case_ids:
         cells = []
         for cfg in configs:
@@ -147,8 +147,11 @@ def build_compare(results_by_config: dict[str, list[CaseResult]]) -> str:
         lines.append(f'| `{cid}` | ' + ' | '.join(cells) + ' |')
     lines.append('')
     # 整体
-    lines.append('| 整体通过率 | ' + ' | '.join(
-        f'{sum(r.pass_runs for r in rs) / max(1, sum(r.n for r in rs)):.0%}'
-        for rs in results_by_config.values()
-    ) + ' |')
+    lines.append(
+        '| 整体通过率 | '
+        + ' | '.join(
+            f'{sum(r.pass_runs for r in rs) / max(1, sum(r.n for r in rs)):.0%}' for rs in results_by_config.values()
+        )
+        + ' |'
+    )
     return '\n'.join(lines)

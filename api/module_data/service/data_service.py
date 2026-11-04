@@ -26,7 +26,6 @@ from module_data.dao.data_dao import (
     DataSourceDao,
 )
 from module_data.entity.do.data_do import DataModel, DataSource
-from module_data.service.access_audit import audit
 from module_data.entity.vo.data_vo import (
     AnalysisTemplateVo,
     DashboardVo,
@@ -38,6 +37,7 @@ from module_data.entity.vo.data_vo import (
     SearchReq,
     TestConnReq,
 )
+from module_data.service.access_audit import audit
 from utils.crypto_util import CryptoUtil
 
 MASK = '******'
@@ -99,7 +99,7 @@ def _board_param_values(defs: Any) -> dict:
     """看板变量定义数组(存储态 [{name,label,type,default,value}])→ 取数用 {name: value}。
     与前端 board.js paramsToValues 一致:空值回退默认,daterange 展开 名_start/名_end。"""
     out: dict = {}
-    for p in (defs or []):
+    for p in defs or []:
         if not isinstance(p, dict) or not p.get('name'):
             continue
         val = p.get('value')
@@ -557,11 +557,33 @@ class DataModelService:
             pass
 
 
-_CHART_TYPES = frozenset({
-    'bar', 'bar_stack', 'bar_percent', 'hbar', 'line', 'area', 'line_stack',
-    'pie', 'donut', 'rose', 'scatter', 'radar', 'funnel', 'gauge', 'kline',
-    'combo', 'waterfall', 'heatmap', 'boxplot', 'treemap', 'sankey', 'kpi', 'table',
-})
+_CHART_TYPES = frozenset(
+    {
+        'bar',
+        'bar_stack',
+        'bar_percent',
+        'hbar',
+        'line',
+        'area',
+        'line_stack',
+        'pie',
+        'donut',
+        'rose',
+        'scatter',
+        'radar',
+        'funnel',
+        'gauge',
+        'kline',
+        'combo',
+        'waterfall',
+        'heatmap',
+        'boxplot',
+        'treemap',
+        'sankey',
+        'kpi',
+        'table',
+    }
+)
 _CHART_AGGS = frozenset({'sum', 'avg', 'count', 'max', 'min', 'none'})
 
 
@@ -755,16 +777,28 @@ class DataQueryService:
                 assert_readonly_sql(native, handler.family)  # 只读护栏(仅 SQL 文本族):拦截 DML/DDL
             except ValueError as e:
                 raise ServiceException(message=str(e)) from None
-            with audit(access_type='query', datasource_code=m.datasource_code, object_name=m.object_name,
-                       statement=native, model_id=m.id, source_type=handler.name) as a:
+            with audit(
+                access_type='query',
+                datasource_code=m.datasource_code,
+                object_name=m.object_name,
+                statement=native,
+                model_id=m.id,
+                source_type=handler.name,
+            ) as a:
                 records = await run_in_threadpool(handler.query, native, None, req.limit)
                 a.rows = len(records)
         else:
             cls._check_fields(m, req.filters)
             if not handler.has(Capability.GEN_API):
                 raise ServiceException(message=f'{handler.name} 不支持条件查询,请用原生查询')
-            with audit(access_type='search', datasource_code=m.datasource_code, object_name=m.object_name,
-                       filters=req.filters, model_id=m.id, source_type=handler.name) as a:
+            with audit(
+                access_type='search',
+                datasource_code=m.datasource_code,
+                object_name=m.object_name,
+                filters=req.filters,
+                model_id=m.id,
+                source_type=handler.name,
+            ) as a:
                 res = await run_in_threadpool(handler.search, m.object_name, req.filters, 1, req.limit or 5000)
                 records = res['records']
                 a.rows = len(records)
@@ -893,14 +927,19 @@ class DataQueryService:
         return cfg, prompt
 
     @classmethod
-    async def prep_plot_code(cls, db: AsyncSession, datasource_code: str, question: str, current_code: str = '') -> tuple[dict, str]:
+    async def prep_plot_code(
+        cls, db: AsyncSession, datasource_code: str, question: str, current_code: str = ''
+    ) -> tuple[dict, str]:
         """代码看板 AI 辅助:自然语言(+可选现有代码)→ 取数+pyecharts 绘图代码(流式)。返回 (模型cfg, prompt)。"""
         if not (question or '').strip():
             raise ServiceException(message='请描述要画的图')
         ds = await DataSourceDao.get_by_code(db, datasource_code) if datasource_code else None
         prompt = ez_prompts.build_plot_code_prompt(
-            datasource_code, ds.source_type if ds else '', getattr(ds, 'family', '') if ds else '',
-            question, current_code or '',
+            datasource_code,
+            ds.source_type if ds else '',
+            getattr(ds, 'family', '') if ds else '',
+            question,
+            current_code or '',
         )
         cfg = await _ai_resolve_cfg(db)
         return cfg, prompt
@@ -946,7 +985,9 @@ class DataQueryService:
         elif isinstance(result, str) and '<' in result:
             html = result
         if not html:
-            raise ServiceException(message='代码未产出 HTML 图表(需 result={"type":"html","value": 图表.render_embed()})')
+            raise ServiceException(
+                message='代码未产出 HTML 图表(需 result={"type":"html","value": 图表.render_embed()})'
+            )
         return {'html': str(html)}
 
     @classmethod
@@ -1077,8 +1118,14 @@ class DataQueryService:
             stmt, display, gen_err = cls._prep_statement(text, handler)
             if gen_err is None:
                 try:
-                    with audit(access_type='query', datasource_code=m.datasource_code, object_name=m.object_name,
-                               statement=display, model_id=m.id, source_type=handler.name) as a:
+                    with audit(
+                        access_type='query',
+                        datasource_code=m.datasource_code,
+                        object_name=m.object_name,
+                        statement=display,
+                        model_id=m.id,
+                        source_type=handler.name,
+                    ) as a:
                         records = await run_in_threadpool(handler.query, stmt, None, limit)
                         a.rows = len(records)
                     return {
@@ -1095,9 +1142,7 @@ class DataQueryService:
                 last_err = gen_err
             trace.append({'attempt': attempt, 'query': display, 'error': last_err})
             prompt = cls._retry_prompt(base, display, last_err)
-        raise ServiceException(
-            message=f'AI 取数失败(已自动纠错 {cls._QUERY_MAX_TRIES} 次仍未跑通):{last_err}'
-        )
+        raise ServiceException(message=f'AI 取数失败(已自动纠错 {cls._QUERY_MAX_TRIES} 次仍未跑通):{last_err}')
 
     @classmethod
     async def prep_ai_query(cls, db: AsyncSession, m_id: str, question: str) -> tuple[dict, str]:
@@ -1117,8 +1162,14 @@ class DataQueryService:
         if not handler.has(Capability.GEN_API):
             raise ServiceException(message=f'{handler.name} 不支持分页接口')
         cls._check_fields(m, req.filters)
-        with audit(access_type='search', datasource_code=m.datasource_code, object_name=m.object_name,
-                   filters=req.filters, model_id=m.id, source_type=handler.name) as a:
+        with audit(
+            access_type='search',
+            datasource_code=m.datasource_code,
+            object_name=m.object_name,
+            filters=req.filters,
+            model_id=m.id,
+            source_type=handler.name,
+        ) as a:
             res = await run_in_threadpool(handler.search, m.object_name, req.filters, req.page, req.pagesize)
             a.rows = len(res['records']) if isinstance(res, dict) and 'records' in res else None
         if isinstance(res, dict) and 'records' in res:
@@ -1149,16 +1200,24 @@ class EtlService:
                 except ValueError as e:
                     raise ServiceException(message=str(e)) from None
                 limit = min(int(req.limit or 50), 200)
-                with audit(access_type='preview', datasource_code=req.datasource_code,
-                           object_name=getattr(req, 'object_name', None), statement=native,
-                           source_type=handler.name) as a:
+                with audit(
+                    access_type='preview',
+                    datasource_code=req.datasource_code,
+                    object_name=getattr(req, 'object_name', None),
+                    statement=native,
+                    source_type=handler.name,
+                ) as a:
                     rows = await run_in_threadpool(handler.query, native, None, limit)
                     a.rows = len(rows)
             elif handler.has(Capability.STREAM):  # 流式源:有界抽 1 条
                 stmt = stream_statement(req.object_name)
-                with audit(access_type='preview', datasource_code=req.datasource_code,
-                           object_name=getattr(req, 'object_name', None), statement=str(stmt),
-                           source_type=handler.name) as a:
+                with audit(
+                    access_type='preview',
+                    datasource_code=req.datasource_code,
+                    object_name=getattr(req, 'object_name', None),
+                    statement=str(stmt),
+                    source_type=handler.name,
+                ) as a:
                     rows = await run_in_threadpool(handler.query, stmt, None, 1)
                     a.rows = len(rows)
             else:
@@ -1430,8 +1489,15 @@ class OpenDataService:
         filters = parse_query_params(params)
         page = int(params.get('page', 1))
         pagesize = min(int(params.get('pagesize', 20)), 200)  # 对外强制上限
-        with audit(access_type='api', datasource_code=m.datasource_code, object_name=m.object_name,
-                   filters=filters, model_id=m.id, source_type=handler.name, source='api') as a:
+        with audit(
+            access_type='api',
+            datasource_code=m.datasource_code,
+            object_name=m.object_name,
+            filters=filters,
+            model_id=m.id,
+            source_type=handler.name,
+            source='api',
+        ) as a:
             res = await run_in_threadpool(handler.search, m.object_name, filters, page, pagesize)
             a.rows = len(res['records']) if isinstance(res, dict) and 'records' in res else None
         return res
@@ -1465,7 +1531,9 @@ class OpenDataService:
             req = QueryReq(native=native, params=_board_param_values(content.get('filters') or []), limit=5000)
             data = await DataQueryService.query(db, model_id, req)
             return {
-                'name': base.name, 'chartSpec': cfg, 'rows': data['records'],
+                'name': base.name,
+                'chartSpec': cfg,
+                'rows': data['records'],
                 'refreshInterval': base.refresh_interval or 0,
             }
 
@@ -1483,10 +1551,13 @@ class AnalysisTemplateService:
         native = (vo.query or {}).get('native') if isinstance(vo.query, dict) else None
         return {
             'canvas': {'mode': 'single'},
-            'components': [{
-                'id': 'c1', 'type': 'chart',
-                'inline': {'modelId': vo.model_id, 'native': native, 'chartSpec': vo.chart_spec},
-            }],
+            'components': [
+                {
+                    'id': 'c1',
+                    'type': 'chart',
+                    'inline': {'modelId': vo.model_id, 'native': native, 'chartSpec': vo.chart_spec},
+                }
+            ],
             'filters': vo.params or [],
         }
 
@@ -1497,13 +1568,18 @@ class AnalysisTemplateService:
         comps = content.get('components') or []
         inline = (comps[0].get('inline') if comps and isinstance(comps[0], dict) else None) or {}
         return AnalysisTemplateVo(
-            id=base.id, name=base.name, model_id=base.model_id, model_name=base.model_name,
+            id=base.id,
+            name=base.name,
+            model_id=base.model_id,
+            model_name=base.model_name,
             query={'type': 'native', 'native': inline.get('native')},
             chart_spec=inline.get('chartSpec'),
             params=content.get('filters') or [],
             refresh_interval=base.refresh_interval or 0,
             share_token=base.share_token,
-            remark=base.remark, create_time=base.create_time, update_time=base.update_time,
+            remark=base.remark,
+            create_time=base.create_time,
+            update_time=base.update_time,
         )
 
     @classmethod
@@ -1545,9 +1621,12 @@ class AnalysisTemplateService:
         if not (vo.name or '').strip():
             raise ServiceException(message='请填写模板名称')
         base_data = {
-            'name': vo.name, 'dash_type': 'chart',
-            'model_id': vo.model_id, 'model_name': vo.model_name,
-            'refresh_interval': vo.refresh_interval or 0, 'remark': vo.remark,
+            'name': vo.name,
+            'dash_type': 'chart',
+            'model_id': vo.model_id,
+            'model_name': vo.model_name,
+            'refresh_interval': vo.refresh_interval or 0,
+            'remark': vo.remark,
         }  # 不含 share_token:开关分享单独管、保存不动它
         if vo.id:
             base_data['update_by'] = operator
@@ -1613,10 +1692,17 @@ class AnalysisTemplateService:
             'filters': [],
         }
         tid = uuid.uuid4().hex
-        await DashboardDao.add(db, {
-            'id': tid, 'name': name.strip(), 'dash_type': 'code',
-            'model_name': '代码看板', 'remark': remark or 'AI 对话·代码看板', 'create_by': operator,
-        })
+        await DashboardDao.add(
+            db,
+            {
+                'id': tid,
+                'name': name.strip(),
+                'dash_type': 'code',
+                'model_name': '代码看板',
+                'remark': remark or 'AI 对话·代码看板',
+                'create_by': operator,
+            },
+        )
         await DashboardCanvasDao.upsert(db, tid, content, operator)
         await db.commit()
         return tid
@@ -1638,9 +1724,15 @@ class DashboardService:
     @staticmethod
     def _base_vo(b: Any) -> DashboardVo:
         return DashboardVo(
-            id=b.id, name=b.name, dash_type=b.dash_type, share_token=b.share_token,
-            refresh_interval=b.refresh_interval or 0, thumbnail=b.thumbnail, remark=b.remark,
-            create_time=b.create_time, update_time=b.update_time,
+            id=b.id,
+            name=b.name,
+            dash_type=b.dash_type,
+            share_token=b.share_token,
+            refresh_interval=b.refresh_interval or 0,
+            thumbnail=b.thumbnail,
+            remark=b.remark,
+            create_time=b.create_time,
+            update_time=b.update_time,
         )
 
     @classmethod
@@ -1667,8 +1759,12 @@ class DashboardService:
         if not (vo.name or '').strip():
             raise ServiceException(message='请填写看板名称')
         base_data = {
-            'name': vo.name, 'dash_type': vo.dash_type or 'board', 'model_id': None,
-            'refresh_interval': vo.refresh_interval or 0, 'thumbnail': vo.thumbnail, 'remark': vo.remark,
+            'name': vo.name,
+            'dash_type': vo.dash_type or 'board',
+            'model_id': None,
+            'refresh_interval': vo.refresh_interval or 0,
+            'thumbnail': vo.thumbnail,
+            'remark': vo.remark,
         }  # 不含 share_token:分享单独管
         if vo.id:
             base_data['update_by'] = operator
@@ -1738,7 +1834,7 @@ class DashboardService:
             content = (canvas.content if canvas else None) or {}
             filt_vals = _board_param_values(content.get('filters') or [])
             out_comps = []
-            for comp in (content.get('components') or []):
+            for comp in content.get('components') or []:
                 item = dict(comp)
                 if comp.get('type') == 'chart':
                     chart = await cls._resolve_chart(db, comp)
@@ -1756,13 +1852,18 @@ class DashboardService:
                     inline = comp.get('inline') if isinstance(comp.get('inline'), dict) else {}
                     try:
                         item['html'] = (
-                            await DataQueryService.run_code_chart(db, inline.get('datasourceCode', ''), inline.get('code', ''))
+                            await DataQueryService.run_code_chart(
+                                db, inline.get('datasourceCode', ''), inline.get('code', '')
+                            )
                         ).get('html', '')
                     except Exception:
                         item['html'] = ''
                 out_comps.append(item)
             return {
-                'name': base.name, 'dashType': base.dash_type,
-                'canvas': content.get('canvas') or {}, 'components': out_comps,
-                'filters': content.get('filters') or [], 'refreshInterval': base.refresh_interval or 0,
+                'name': base.name,
+                'dashType': base.dash_type,
+                'canvas': content.get('canvas') or {},
+                'components': out_comps,
+                'filters': content.get('filters') or [],
+                'refreshInterval': base.refresh_interval or 0,
             }

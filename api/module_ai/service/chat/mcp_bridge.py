@@ -99,9 +99,7 @@ async def stream_with_mcp_bridge(
 
     async def _worker() -> None:
         try:
-            logger.info(
-                f'[MCP worker] 启动,选中 {len(all_mcp_configs)} 个 MCP 工具,{member_count} 个成员 agent'
-            )
+            logger.info(f'[MCP worker] 启动,选中 {len(all_mcp_configs)} 个 MCP 工具,{member_count} 个成员 agent')
             await with_mcp_tools(all_mcp_configs, [], _run_with_tools)
             logger.info('[MCP worker] 正常结束')
         except Exception as e:

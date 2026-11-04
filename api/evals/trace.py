@@ -24,10 +24,10 @@ from typing import Any
 class ToolCall:
     id: str
     name: str
-    args: Any = None          # start 事件的(已截断)入参
-    result: Any = None        # end 事件的(已截断)结果文本
+    args: Any = None  # start 事件的(已截断)入参
+    result: Any = None  # end 事件的(已截断)结果文本
     error: str | None = None  # error 事件文本;非 None 即该工具调用失败
-    status: str = 'pending'   # pending | ok | error
+    status: str = 'pending'  # pending | ok | error
 
     @property
     def ok(self) -> bool:

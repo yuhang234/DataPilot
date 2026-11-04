@@ -30,7 +30,7 @@ def build_skill_catalog(skills: list[dict] | None) -> str:
         '下列技能是为特定任务预置的操作指南。当用户需求匹配某技能的用途时,先调用 load_skill(该技能的 code) 拿到完整步骤,再严格按其指引完成;不匹配则忽略,正常回答。',
     ]
     for s in listed:
-        lines.append(f"- `{s.get('code')}`:{s.get('name')} —— {s.get('description') or ''}")
+        lines.append(f'- `{s.get("code")}`:{s.get("name")} —— {s.get("description") or ""}')
     return '\n'.join(lines)
 
 
@@ -67,7 +67,9 @@ class SkillTools(Toolkit):
             out += f'\n\n---\n本技能附带文件:{names}\n需要某个文件时,调用 read_skill_file("{skill_code}", "文件名") 拉取其内容。'
         refs = [c for c in (s.get('refs') or []) if c in self._skills]
         if refs:
-            out += f'\n\n本技能引用了其它技能:{", ".join(refs)}\n需要时用 load_skill("引用的code") 加载它们(渐进式,按需)。'
+            out += (
+                f'\n\n本技能引用了其它技能:{", ".join(refs)}\n需要时用 load_skill("引用的code") 加载它们(渐进式,按需)。'
+            )
         return out
 
     def read_skill_file(self, skill_code: str, filename: str) -> str:

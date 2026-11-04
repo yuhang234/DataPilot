@@ -45,22 +45,30 @@ def check_quality(data: list[dict], rules: list[dict]) -> list[dict]:
             for f in rule.get('fields') or []:
                 bad = sum(1 for r in data if r.get(f) in (None, ''))
                 if bad:
-                    violations.append({
-                        'rule': 'not_null', 'field': f, 'expected': '无空值',
-                        'actual': f'{bad}/{total} 行为空',
-                        'message': f'字段「{f}」有 {bad}/{total} 行为空(not_null)',
-                    })
+                    violations.append(
+                        {
+                            'rule': 'not_null',
+                            'field': f,
+                            'expected': '无空值',
+                            'actual': f'{bad}/{total} 行为空',
+                            'message': f'字段「{f}」有 {bad}/{total} 行为空(not_null)',
+                        }
+                    )
 
         elif rtype == 'allowed_values':
             f = rule.get('field')
             allow = set(rule.get('values') or [])
             bad_vals = {r.get(f) for r in data if r.get(f) is not None and r.get(f) not in allow}
             if bad_vals:
-                violations.append({
-                    'rule': 'allowed_values', 'field': f, 'expected': sorted(allow, key=str),
-                    'actual': _sample(sorted(bad_vals, key=str)),
-                    'message': f'字段「{f}」出现非白名单值:{_sample(sorted(bad_vals, key=str))}(allowed_values)',
-                })
+                violations.append(
+                    {
+                        'rule': 'allowed_values',
+                        'field': f,
+                        'expected': sorted(allow, key=str),
+                        'actual': _sample(sorted(bad_vals, key=str)),
+                        'message': f'字段「{f}」出现非白名单值:{_sample(sorted(bad_vals, key=str))}(allowed_values)',
+                    }
+                )
 
         elif rtype == 'value_range':
             f = rule.get('field')
@@ -73,11 +81,15 @@ def check_quality(data: list[dict], rules: list[dict]) -> list[dict]:
                 if (lo is not None and v < float(lo)) or (hi is not None and v > float(hi)):
                     bad += 1
             if bad:
-                violations.append({
-                    'rule': 'value_range', 'field': f, 'expected': f'[{lo}, {hi}]',
-                    'actual': f'{bad}/{total} 行越界',
-                    'message': f'字段「{f}」有 {bad}/{total} 行超出区间 [{lo}, {hi}](value_range)',
-                })
+                violations.append(
+                    {
+                        'rule': 'value_range',
+                        'field': f,
+                        'expected': f'[{lo}, {hi}]',
+                        'actual': f'{bad}/{total} 行越界',
+                        'message': f'字段「{f}」有 {bad}/{total} 行超出区间 [{lo}, {hi}](value_range)',
+                    }
+                )
 
         elif rtype == 'unique':
             fields = rule.get('fields') or []
@@ -90,11 +102,15 @@ def check_quality(data: list[dict], rules: list[dict]) -> list[dict]:
                 else:
                     seen.add(key)
             if dups:
-                violations.append({
-                    'rule': 'unique', 'field': ','.join(fields), 'expected': '唯一',
-                    'actual': f'{len(dups)} 个重复键',
-                    'message': f'字段「{",".join(fields)}」有 {len(dups)} 个重复键值(unique)',
-                })
+                violations.append(
+                    {
+                        'rule': 'unique',
+                        'field': ','.join(fields),
+                        'expected': '唯一',
+                        'actual': f'{len(dups)} 个重复键',
+                        'message': f'字段「{",".join(fields)}」有 {len(dups)} 个重复键值(unique)',
+                    }
+                )
 
     return violations
 
@@ -107,11 +123,15 @@ def check_row_count(total_rows: int, rules: list[dict]) -> list[dict]:
             continue
         min_rows = int(rule.get('min') or 0)
         if total_rows < min_rows:
-            violations.append({
-                'rule': 'row_count_min', 'field': None, 'expected': f'>= {min_rows}',
-                'actual': total_rows,
-                'message': f'装载行数 {total_rows} 低于下限 {min_rows}(row_count_min)',
-            })
+            violations.append(
+                {
+                    'rule': 'row_count_min',
+                    'field': None,
+                    'expected': f'>= {min_rows}',
+                    'actual': total_rows,
+                    'message': f'装载行数 {total_rows} 低于下限 {min_rows}(row_count_min)',
+                }
+            )
     return violations
 
 

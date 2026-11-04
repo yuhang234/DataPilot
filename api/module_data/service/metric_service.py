@@ -18,7 +18,15 @@ import json
 from typing import Any
 
 _FETCH_CAP = 10000
-_AGG = {'sum': 'sum', 'avg': 'mean', 'mean': 'mean', 'max': 'max', 'min': 'min', 'count': 'count', 'count_distinct': 'nunique'}
+_AGG = {
+    'sum': 'sum',
+    'avg': 'mean',
+    'mean': 'mean',
+    'max': 'max',
+    'min': 'min',
+    'count': 'count',
+    'count_distinct': 'nunique',
+}
 
 
 def _loads(s: str | None, default: Any) -> Any:
@@ -86,7 +94,9 @@ def _aggregate(code: str, md: dict, rows: list, group_by, filters, time_range, t
     if field and field in df.columns and agg not in ('count', 'nunique'):
         df[field] = pd.to_numeric(df[field], errors='coerce')
 
-    dims = group_by or [d.get('field') for d in _loads(md.get('dimensions'), []) if isinstance(d, dict) and d.get('field')]
+    dims = group_by or [
+        d.get('field') for d in _loads(md.get('dimensions'), []) if isinstance(d, dict) and d.get('field')
+    ]
     dims = [d for d in dims if d in df.columns]
 
     if dims:
@@ -164,13 +174,19 @@ class MetricService:
 
         db = get_sync_session_local()()
         try:
-            rows = db.execute(select(DataMetric).where(DataMetric.status == '0').order_by(DataMetric.metric_id)).scalars().all()
+            rows = (
+                db.execute(select(DataMetric).where(DataMetric.status == '0').order_by(DataMetric.metric_id))
+                .scalars()
+                .all()
+            )
             return [
                 {
                     'code': r.code,
                     'name': r.name,
                     'caliber': (r.caliber or '').strip(),
-                    'dimensions': [d.get('field') for d in _loads(r.dimensions, []) if isinstance(d, dict) and d.get('field')],
+                    'dimensions': [
+                        d.get('field') for d in _loads(r.dimensions, []) if isinstance(d, dict) and d.get('field')
+                    ],
                     'unit': r.unit or '',
                 }
                 for r in rows
@@ -189,14 +205,21 @@ class MetricService:
 
         db = get_sync_session_local()()
         try:
-            metric = db.execute(select(DataMetric).where(DataMetric.code == metric_code, DataMetric.status == '0')).scalars().first()
+            metric = (
+                db.execute(select(DataMetric).where(DataMetric.code == metric_code, DataMetric.status == '0'))
+                .scalars()
+                .first()
+            )
             if not metric:
                 avail = ', '.join(m['code'] for m in cls.catalog_sync()) or '(无)'
                 return {'error': f'指标不存在或已停用: {metric_code}。可用指标: {avail}'}
             if not metric.model_id:
                 return {'error': f'指标 {metric_code} 未绑定数据模型'}
             model = db.execute(select(DataModel).where(DataModel.id == metric.model_id)).scalars().first()
-            ds = model and db.execute(select(DataSource).where(DataSource.code == model.datasource_code)).scalars().first()
+            ds = (
+                model
+                and db.execute(select(DataSource).where(DataSource.code == model.datasource_code)).scalars().first()
+            )
             if not model or not ds:
                 return {'error': f'指标 {metric_code} 的模型/数据源缺失'}
             md = _md(metric)
@@ -297,7 +320,9 @@ class MetricService:
                 'code': r.code,
                 'name': r.name,
                 'caliber': (r.caliber or '').strip(),
-                'dimensions': [d.get('field') for d in _loads(r.dimensions, []) if isinstance(d, dict) and d.get('field')],
+                'dimensions': [
+                    d.get('field') for d in _loads(r.dimensions, []) if isinstance(d, dict) and d.get('field')
+                ],
                 'unit': r.unit or '',
             }
             for r in rows

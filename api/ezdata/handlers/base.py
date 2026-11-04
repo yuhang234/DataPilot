@@ -200,9 +200,7 @@ class Connector(ABC):
     def check_write_mode(self, mode: str) -> None:
         """校验写入模式是否被本源支持(不支持则抛可读错误)。供 runner/service 门禁调用。"""
         if mode not in self.write_modes:
-            raise ValueError(
-                f'{self.name} 不支持写入模式 {mode!r};仅支持 {list(self.write_modes)}'
-            )
+            raise ValueError(f'{self.name} 不支持写入模式 {mode!r};仅支持 {list(self.write_modes)}')
 
     def stream(self, **kwargs: Any) -> Iterator[dict]:
         """流式消费(长驻):持续 yield 记录(Kafka 消息 / binlog 变更事件)。供长驻 worker 调用。"""

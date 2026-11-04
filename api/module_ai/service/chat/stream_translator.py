@@ -150,9 +150,7 @@ async def stream_agent(
             # 仅在最外层 Team/Agent 完成时报指标(成员完成不报,避免多次)
             if base == RunEvent.run_completed.value and not member and getattr(chunk, 'metrics', None):
                 yield (
-                    json.dumps(
-                        {'metrics': CamelCaseUtil.transform_result(chunk.metrics.to_dict()), 'type': 'metrics'}
-                    )
+                    json.dumps({'metrics': CamelCaseUtil.transform_result(chunk.metrics.to_dict()), 'type': 'metrics'})
                     + '\n'
                 )
 

@@ -506,9 +506,13 @@ class DataIntegrationRunner(BaseRunner):
             if link:
                 content += f'\n查看任务：{link}'
             AlertService.dispatch_task_alert(
-                db, task,
+                db,
+                task,
                 title=f'数据质量告警: {task.name}',
-                content=content, biz='etl', source=table or task.name, metric='data_quality',
+                content=content,
+                biz='etl',
+                source=table or task.name,
+                metric='data_quality',
                 tags={
                     'task_id': task_id,
                     'instance_id': self.context.get('instance_id'),

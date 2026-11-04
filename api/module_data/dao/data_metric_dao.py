@@ -3,7 +3,6 @@ from typing import Any
 from sqlalchemy import ColumnElement, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.vo import PageModel
 from module_data.entity.do.data_metric_do import DataMetric
 from module_data.entity.vo.data_metric_vo import DataMetricQuery
 from utils.page_util import PageUtil
@@ -27,11 +26,15 @@ class DataMetricDao:
         )
 
     @classmethod
-    async def get_list(cls, db: AsyncSession, q: DataMetricQuery, scope_sql: ColumnElement | bool = True, is_page: bool = False):
+    async def get_list(
+        cls, db: AsyncSession, q: DataMetricQuery, scope_sql: ColumnElement | bool = True, is_page: bool = False
+    ):
         stmt = (
             select(DataMetric)
             .where(
-                or_(DataMetric.name.like(f'%{q.keyword}%'), DataMetric.code.like(f'%{q.keyword}%')) if q.keyword else True,
+                or_(DataMetric.name.like(f'%{q.keyword}%'), DataMetric.code.like(f'%{q.keyword}%'))
+                if q.keyword
+                else True,
                 DataMetric.status == q.status if q.status else True,
                 scope_sql,
             )
@@ -59,7 +62,5 @@ class DataMetricDao:
         """血缘影响:把绑定这些模型的指标标 stale(供 P2b 防过期)。"""
         if not model_ids:
             return 0
-        r = await db.execute(
-            update(DataMetric).where(DataMetric.model_id.in_(model_ids)).values(review_state='stale')
-        )
+        r = await db.execute(update(DataMetric).where(DataMetric.model_id.in_(model_ids)).values(review_state='stale'))
         return r.rowcount or 0

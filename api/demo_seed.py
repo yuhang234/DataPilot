@@ -1023,9 +1023,11 @@ TASKS = [
         'fin_stock_daily',  # 与「个股日线(6只)」共用同一索引/模型:schema 相同,md5(symbol+date) 去重
         '个股日线',
         '',  # cron 空 → trigger_type=1 单次(手动触发一次,全量沪深约5000只、耗时较长)
-        'A股前复权日线 OHLCV(date/open/high/low/close/volume/amount/turnover + symbol/name),写入 fin_stock_daily。'
-        '全量单次回填:复用 fin_stock_spot 全市场代码,逐只 akshare(stock_zh_a_daily 前复权)补全市场约5000只历史(emit 流式、md5(symbol+date) 幂等)。'
-        '日常增量由「A股日线增量·快照第一页」定时任务维护,二者共用同一索引/模型。适合K线/均线/个股走势对比。',
+        (
+            'A股前复权日线 OHLCV(date/open/high/low/close/volume/amount/turnover + symbol/name),写入 fin_stock_daily。'
+            '全量单次回填:复用 fin_stock_spot 全市场代码,逐只 akshare(stock_zh_a_daily 前复权)补全市场约5000只历史(emit 流式、md5(symbol+date) 幂等)。'
+            '日常增量由「A股日线增量·快照第一页」定时任务维护,二者共用同一索引/模型。适合K线/均线/个股走势对比。'
+        ),
     ),
 ]
 
@@ -1088,23 +1090,38 @@ TF_DIV_BOND = (
     '    import hashlib\n'
     "    d = str(row.get('日期', ''))\n"
     "    v = row.get('中国国债收益率10年')\n"
-    "    v = None if v is None or v != v else v\n"
+    '    v = None if v is None or v != v else v\n'
     "    return {'date': d, 'bond_10y': v, '_id': hashlib.md5(d.encode('utf-8')).hexdigest()}\n"
 )
 # 收盘后日更(交易日 16 点错峰)。(id, name, params, idx, label, cron, desc)
 TASKS += [
-    ('div_index_h30269', '红利低波指数(H30269)历史',
-     code(AK, C_DIV_INDEX, 'div_index_h30269', TF_DIV_INDEX), 'div_index_h30269',
-     '中证红利低波动指数(H30269)历史:点位/涨跌幅/成交/滚动PE', '0 5 16 ? * 2-6 *',
-     '红利低波指数全历史(2013至今):open/high/low/close/change_pct/volume/amount/pe(滚动市盈率),中证官方。点位与 PE 全历史,可算估值分位/相关性。'),
-    ('div_valuation', '红利低波指数股息率',
-     code(AK, C_DIV_VAL, 'div_valuation', TF_DIV_VAL), 'div_valuation',
-     '中证红利低波动指数(H30269)股息率(中证官方)', '0 8 16 ? * 2-6 *',
-     '红利低波股息率 dividend_yield(%)+ pe(当前口径),中证官方仅回近~20交易日,按日累积成史。'),
-    ('div_bond10y', '中国10年期国债收益率',
-     code(AK, C_DIV_BOND, 'div_bond10y', TF_DIV_BOND), 'div_bond10y',
-     '中国10年期国债收益率(股债利差用)', '0 11 16 ? * 2-6 *',
-     '中国10年期国债到期收益率 bond_10y(%),用于股债利差=国债−股息率。'),
+    (
+        'div_index_h30269',
+        '红利低波指数(H30269)历史',
+        code(AK, C_DIV_INDEX, 'div_index_h30269', TF_DIV_INDEX),
+        'div_index_h30269',
+        '中证红利低波动指数(H30269)历史:点位/涨跌幅/成交/滚动PE',
+        '0 5 16 ? * 2-6 *',
+        '红利低波指数全历史(2013至今):open/high/low/close/change_pct/volume/amount/pe(滚动市盈率),中证官方。点位与 PE 全历史,可算估值分位/相关性。',
+    ),
+    (
+        'div_valuation',
+        '红利低波指数股息率',
+        code(AK, C_DIV_VAL, 'div_valuation', TF_DIV_VAL),
+        'div_valuation',
+        '中证红利低波动指数(H30269)股息率(中证官方)',
+        '0 8 16 ? * 2-6 *',
+        '红利低波股息率 dividend_yield(%)+ pe(当前口径),中证官方仅回近~20交易日,按日累积成史。',
+    ),
+    (
+        'div_bond10y',
+        '中国10年期国债收益率',
+        code(AK, C_DIV_BOND, 'div_bond10y', TF_DIV_BOND),
+        'div_bond10y',
+        '中国10年期国债收益率(股债利差用)',
+        '0 11 16 ? * 2-6 *',
+        '中国10年期国债到期收益率 bond_10y(%),用于股债利差=国债−股息率。',
+    ),
 ]
 
 # 红利低波看板(指数点位/PE全历史 + 股息率 + 国债 + 估值明细)
@@ -1116,28 +1133,73 @@ def _divline(cid, model, idx, y, title, unit, x, ypos, w, h, start_var=False):
     # 否则 match_all(不受筛选影响)——借此演示「作用范围」:只有引用了 {{start}} 的图才联动。
     query = {'range': {'date': {'gte': '{{start}}'}}} if start_var else {'match_all': {}}
     return {
-        'id': cid, 'type': 'chart',
-        'inline': {'modelId': model,
-                   'native': {'index': idx, 'body': {'query': query, 'size': 5000}},
-                   'chartSpec': {'type': 'line', 'x': 'date', 'ys': [{'field': y, 'agg': 'sum'}],
-                                 'sort': {'by': '__x__', 'dir': 'asc'},
-                                 'style': {'title': title, 'smooth': True, **({'unit': unit} if unit else {})}}},
-        'pos': {'x': x, 'y': ypos, 'w': w, 'h': h}, 'props': {'title': title}, 'subscribe': True,
+        'id': cid,
+        'type': 'chart',
+        'inline': {
+            'modelId': model,
+            'native': {'index': idx, 'body': {'query': query, 'size': 5000}},
+            'chartSpec': {
+                'type': 'line',
+                'x': 'date',
+                'ys': [{'field': y, 'agg': 'sum'}],
+                'sort': {'by': '__x__', 'dir': 'asc'},
+                'style': {'title': title, 'smooth': True, **({'unit': unit} if unit else {})},
+            },
+        },
+        'pos': {'x': x, 'y': ypos, 'w': w, 'h': h},
+        'props': {'title': title},
+        'subscribe': True,
     }
 
 
 DIV_DASH_COMPONENTS = [
-    _divline('c1', 'dm_div_index_h30269', 'div_index_h30269', 'close', '红利低波指数(H30269)点位走势·全历史', '', 0, 0, 24, 7, start_var=True),
-    _divline('c2', 'dm_div_index_h30269', 'div_index_h30269', 'pe', '红利低波 滚动市盈率PE·全历史(可算分位)', '', 0, 7, 12, 7, start_var=True),
-    _divline('c3', 'dm_div_valuation', 'div_valuation', 'dividend_yield', '红利低波 股息率历史(%,累积中)', '%', 12, 7, 12, 7),
+    _divline(
+        'c1',
+        'dm_div_index_h30269',
+        'div_index_h30269',
+        'close',
+        '红利低波指数(H30269)点位走势·全历史',
+        '',
+        0,
+        0,
+        24,
+        7,
+        start_var=True,
+    ),
+    _divline(
+        'c2',
+        'dm_div_index_h30269',
+        'div_index_h30269',
+        'pe',
+        '红利低波 滚动市盈率PE·全历史(可算分位)',
+        '',
+        0,
+        7,
+        12,
+        7,
+        start_var=True,
+    ),
+    _divline(
+        'c3', 'dm_div_valuation', 'div_valuation', 'dividend_yield', '红利低波 股息率历史(%,累积中)', '%', 12, 7, 12, 7
+    ),
     _divline('c4', 'dm_div_bond10y', 'div_bond10y', 'bond_10y', '中国10年期国债收益率(%)', '%', 0, 14, 12, 7),
-    {'id': 'c5', 'type': 'chart',
-     'inline': {'modelId': 'dm_div_valuation',
-                'native': {'index': 'div_valuation', 'body': {'query': {'match_all': {}}, 'size': 60}},
-                'chartSpec': {'type': 'table', 'x': 'date',
-                              'ys': [{'field': 'dividend_yield', 'agg': 'none'}, {'field': 'pe', 'agg': 'none'}],
-                              'style': {'title': '红利低波估值明细(股息率/PE)'}}},
-     'pos': {'x': 12, 'y': 14, 'w': 12, 'h': 7}, 'props': {'title': '红利低波估值明细'}, 'subscribe': True},
+    {
+        'id': 'c5',
+        'type': 'chart',
+        'inline': {
+            'modelId': 'dm_div_valuation',
+            'native': {'index': 'div_valuation', 'body': {'query': {'match_all': {}}, 'size': 60}},
+            'chartSpec': {
+                'type': 'table',
+                'x': 'date',
+                'ys': [{'field': 'dividend_yield', 'agg': 'none'}, {'field': 'pe', 'agg': 'none'}],
+                'style': {'title': '红利低波估值明细(股息率/PE)'},
+            },
+        },
+        'pos': {'x': 12, 'y': 14, 'w': 12, 'h': 7},
+        'props': {'title': '红利低波估值明细'},
+        'subscribe': True,
+    },
 ]
 DIV_DASH_CANVAS = {'mode': 'matrix', 'cols': 24}
 # 看板变量(联动):顶部筛选栏「起始日期」→ 图表 native 里的 {{start}} 占位;改值即重刷 c1/c2
@@ -1187,8 +1249,11 @@ DIV_APP_CONFIG = {
         {'name': '股债利差', 'content': '10年国债−红利低波股息率的历史走势,折线图,标注 -3%/-3.5%'},
         {'name': '指数走势', 'content': '红利低波指数近三年点位走势,折线图并点评'},
     ],
-    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [ES, AK],
-    'enableMemory': False, 'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
+    'toolIds': [],
+    'datasetIds': [],
+    'datasourceCodes': [ES, AK],
+    'enableMemory': False,
+    'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
 # 数据源(自包含:不依赖 ezdata.sql 的 demo 段)。(id, name, code, source_type, family, config_dict)
@@ -1210,7 +1275,8 @@ DASH_ID = 'demo_board_market'
 
 def _dcomp(cid, model, idx, size, chartspec, x, y, w, h):
     return {
-        'id': cid, 'type': 'chart',
+        'id': cid,
+        'type': 'chart',
         'inline': {
             'modelId': model,
             'native': {'index': idx, 'body': {'query': {'match_all': {}}, 'size': size}},
@@ -1223,24 +1289,93 @@ def _dcomp(cid, model, idx, size, chartspec, x, y, w, h):
 
 
 DASH_COMPONENTS = [
-    _dcomp('c1', 'dm_fin_index_daily', 'fin_index_daily', 4000,
-           {'type': 'line', 'x': 'date', 'ys': [{'field': 'close', 'agg': 'sum'}], 'series': 'name',
-            'style': {'title': '主要指数日线走势', 'legend': True, 'smooth': True}}, 0, 0, 24, 7),
-    _dcomp('c2', 'dm_fin_industry_summary', 'fin_industry_summary', 200,
-           {'type': 'bar', 'x': 'board_name', 'ys': [{'field': 'change_pct', 'agg': 'sum'}],
-            'sort': {'by': 'change_pct', 'dir': 'desc'}, 'topN': 12,
-            'style': {'title': '行业涨跌幅 Top12(%)', 'label': True}}, 0, 7, 12, 7),
-    _dcomp('c3', 'dm_fin_concept_board', 'fin_concept_board', 400,
-           {'type': 'bar', 'x': 'board_name', 'ys': [{'field': 'change_pct', 'agg': 'sum'}],
-            'sort': {'by': 'change_pct', 'dir': 'desc'}, 'topN': 12,
-            'style': {'title': '概念板块涨幅 Top12(%)'}}, 12, 7, 12, 7),
-    _dcomp('c4', 'dm_fin_market_fund_flow', 'fin_market_fund_flow', 200,
-           {'type': 'line', 'x': 'date', 'ys': [{'field': 'main_net', 'agg': 'sum'}],
-            'style': {'title': '大盘主力净流入趋势(亿元)', 'unit': '元', 'scale': 'yi'}}, 0, 14, 12, 7),
-    _dcomp('c5', 'dm_fin_industry_pe', 'fin_industry_pe', 300,
-           {'type': 'bar', 'x': 'industry_name', 'ys': [{'field': 'pe_weighted', 'agg': 'sum'}],
-            'sort': {'by': 'pe_weighted', 'dir': 'desc'}, 'topN': 12,
-            'style': {'title': '行业加权市盈率 Top12'}}, 12, 14, 12, 7),
+    _dcomp(
+        'c1',
+        'dm_fin_index_daily',
+        'fin_index_daily',
+        4000,
+        {
+            'type': 'line',
+            'x': 'date',
+            'ys': [{'field': 'close', 'agg': 'sum'}],
+            'series': 'name',
+            'style': {'title': '主要指数日线走势', 'legend': True, 'smooth': True},
+        },
+        0,
+        0,
+        24,
+        7,
+    ),
+    _dcomp(
+        'c2',
+        'dm_fin_industry_summary',
+        'fin_industry_summary',
+        200,
+        {
+            'type': 'bar',
+            'x': 'board_name',
+            'ys': [{'field': 'change_pct', 'agg': 'sum'}],
+            'sort': {'by': 'change_pct', 'dir': 'desc'},
+            'topN': 12,
+            'style': {'title': '行业涨跌幅 Top12(%)', 'label': True},
+        },
+        0,
+        7,
+        12,
+        7,
+    ),
+    _dcomp(
+        'c3',
+        'dm_fin_concept_board',
+        'fin_concept_board',
+        400,
+        {
+            'type': 'bar',
+            'x': 'board_name',
+            'ys': [{'field': 'change_pct', 'agg': 'sum'}],
+            'sort': {'by': 'change_pct', 'dir': 'desc'},
+            'topN': 12,
+            'style': {'title': '概念板块涨幅 Top12(%)'},
+        },
+        12,
+        7,
+        12,
+        7,
+    ),
+    _dcomp(
+        'c4',
+        'dm_fin_market_fund_flow',
+        'fin_market_fund_flow',
+        200,
+        {
+            'type': 'line',
+            'x': 'date',
+            'ys': [{'field': 'main_net', 'agg': 'sum'}],
+            'style': {'title': '大盘主力净流入趋势(亿元)', 'unit': '元', 'scale': 'yi'},
+        },
+        0,
+        14,
+        12,
+        7,
+    ),
+    _dcomp(
+        'c5',
+        'dm_fin_industry_pe',
+        'fin_industry_pe',
+        300,
+        {
+            'type': 'bar',
+            'x': 'industry_name',
+            'ys': [{'field': 'pe_weighted', 'agg': 'sum'}],
+            'sort': {'by': 'pe_weighted', 'dir': 'desc'},
+            'topN': 12,
+            'style': {'title': '行业加权市盈率 Top12'},
+        },
+        12,
+        14,
+        12,
+        7,
+    ),
 ]
 DASH_CANVAS = {'mode': 'matrix', 'cols': 24}
 
@@ -1662,9 +1797,11 @@ TASKS += [
         'fin_watch_daily',
         '自选股日线+指标',
         CRON_WATCH,
-        'A股/港股/美股各6只观察池(茅台/宁德/平安/腾讯/阿里/小米/苹果/英伟达/特斯拉等),逐只 akshare 日线(A股前复权)+ pandas 计算 '
-        'MA5/10/20/60、RSI14、MACD(dif/dea/macd)、KDJ(k/d/j)、涨跌幅,取近120根 emit 流式装载。'
-        'market 区分市场,md5(market+symbol+date) 幂等。每天06:40更新,是决策报告与K线/均线看板的数据底座。',
+        (
+            'A股/港股/美股各6只观察池(茅台/宁德/平安/腾讯/阿里/小米/苹果/英伟达/特斯拉等),逐只 akshare 日线(A股前复权)+ pandas 计算 '
+            'MA5/10/20/60、RSI14、MACD(dif/dea/macd)、KDJ(k/d/j)、涨跌幅,取近120根 emit 流式装载。'
+            'market 区分市场,md5(market+symbol+date) 幂等。每天06:40更新,是决策报告与K线/均线看板的数据底座。'
+        ),
     ),
     (
         'demo_fin_daily_report',
@@ -1673,12 +1810,14 @@ TASKS += [
         'fin_daily_report',
         '每日决策报告',
         CRON_REPORT,
-        '读 fin_watch_daily 每只最新指标,融合平台已有数据:A股基本面(fin_yjbb 净利同比/ROE/毛利)、个股新闻(fin_news)、'
-        '大盘背景(fin_market_fund_flow 主力净流入 + fin_market_activity 活跃度 + fin_zt_pool 涨停家数)。把指标拆成 趋势/动量/成长/事件 四因子,'
-        '按 **3 套可切换策略(趋势跟随/成长质量/热点事件)** 各自权重打分 → 同一份数据不同策略出不同 action(买入/持有/观望/回避);'
-        '配了 LLM(env LLM_*)再按各策略侧重提示词产出研判 reason(每股每策略一条),否则规则理由。strategy 字段区分策略,'
-        '另产出每市场每策略"综述"(看多广度)。每天07:10生成,末尾按 env(DEMO_PUSH_*,DEMO_PUSH_STRATEGY 选推送策略)推送群机器人。'
-        '基本面/新闻仅 A股有(平台无H/US对应索引),H/US 纯技术面。数据分析仅供参考,不构成投资建议。',
+        (
+            '读 fin_watch_daily 每只最新指标,融合平台已有数据:A股基本面(fin_yjbb 净利同比/ROE/毛利)、个股新闻(fin_news)、'
+            '大盘背景(fin_market_fund_flow 主力净流入 + fin_market_activity 活跃度 + fin_zt_pool 涨停家数)。把指标拆成 趋势/动量/成长/事件 四因子,'
+            '按 **3 套可切换策略(趋势跟随/成长质量/热点事件)** 各自权重打分 → 同一份数据不同策略出不同 action(买入/持有/观望/回避);'
+            '配了 LLM(env LLM_*)再按各策略侧重提示词产出研判 reason(每股每策略一条),否则规则理由。strategy 字段区分策略,'
+            '另产出每市场每策略"综述"(看多广度)。每天07:10生成,末尾按 env(DEMO_PUSH_*,DEMO_PUSH_STRATEGY 选推送策略)推送群机器人。'
+            '基本面/新闻仅 A股有(平台无H/US对应索引),H/US 纯技术面。数据分析仅供参考,不构成投资建议。'
+        ),
     ),
 ]
 
@@ -1689,49 +1828,115 @@ STOCK_DASH_ID = 'demo_board_stock'
 def _scomp(cid, term_val, ys, title, x, y, w, h, ctype='line'):
     # 按 symbol 精确过滤(symbol.keyword)取单只时序,x=date 升序;ys 各字段一条线
     return {
-        'id': cid, 'type': 'chart',
-        'inline': {'modelId': 'dm_fin_watch_daily',
-                   'native': {'index': 'fin_watch_daily',
-                              'body': {'query': {'term': {'symbol.keyword': term_val}}, 'size': 400,
-                                       'sort': [{'date': 'asc'}]}},
-                   'chartSpec': {'type': ctype, 'x': 'date', 'ys': ys,
-                                 'style': {'title': title, 'legend': True, 'smooth': True}}},
-        'pos': {'x': x, 'y': y, 'w': w, 'h': h}, 'props': {'title': title}, 'subscribe': True,
+        'id': cid,
+        'type': 'chart',
+        'inline': {
+            'modelId': 'dm_fin_watch_daily',
+            'native': {
+                'index': 'fin_watch_daily',
+                'body': {'query': {'term': {'symbol.keyword': term_val}}, 'size': 400, 'sort': [{'date': 'asc'}]},
+            },
+            'chartSpec': {
+                'type': ctype,
+                'x': 'date',
+                'ys': ys,
+                'style': {'title': title, 'legend': True, 'smooth': True},
+            },
+        },
+        'pos': {'x': x, 'y': y, 'w': w, 'h': h},
+        'props': {'title': title},
+        'subscribe': True,
     }
 
 
 _MA_YS = [{'field': 'close', 'agg': 'sum'}, {'field': 'ma20', 'agg': 'sum'}, {'field': 'ma60', 'agg': 'sum'}]
 # 顶部策略切换:select 筛选器 → 变量 {{strategy}} 注入决策表/综述图的 native term,改选即重刷(联动)
 _STRATEGY_OPTIONS = ['趋势跟随', '成长质量', '热点事件']
-STOCK_DASH_FILTERS = [{'name': 'strategy', 'label': '策略', 'type': 'select',
-                       'options': _STRATEGY_OPTIONS, 'default': _STRATEGY_OPTIONS[0]}]
+STOCK_DASH_FILTERS = [
+    {
+        'name': 'strategy',
+        'label': '策略',
+        'type': 'select',
+        'options': _STRATEGY_OPTIONS,
+        'default': _STRATEGY_OPTIONS[0],
+    }
+]
 STOCK_DASH_COMPONENTS = [
-    {'id': 'f1', 'type': 'filter', 'props': {'varName': 'strategy', 'title': '策略切换'},
-     'pos': {'x': 0, 'y': 0, 'w': 24, 'h': 1}},
-    {'id': 'c1', 'type': 'chart',
-     'inline': {'modelId': 'dm_fin_daily_report',
-                'native': {'index': 'fin_daily_report',
-                           'body': {'query': {'bool': {'must': [{'term': {'strategy.keyword': '{{strategy}}'}}],
-                                                       'must_not': [{'term': {'symbol.keyword': '__MARKET__'}}]}},
-                                    'size': 200, 'sort': [{'score': 'desc'}]}},
-                'chartSpec': {'type': 'table', 'x': 'name',
-                              'ys': [{'field': 'market', 'agg': 'none'}, {'field': 'close', 'agg': 'none'},
-                                     {'field': 'change_pct', 'agg': 'none'}, {'field': 'action', 'agg': 'none'},
-                                     {'field': 'score', 'agg': 'none'}, {'field': 'reason', 'agg': 'none'}],
-                              'style': {'title': '决策报告(按所选策略)'}}},
-     'pos': {'x': 0, 'y': 1, 'w': 24, 'h': 8}, 'props': {'title': '每日决策报告'}, 'subscribe': True},
+    {
+        'id': 'f1',
+        'type': 'filter',
+        'props': {'varName': 'strategy', 'title': '策略切换'},
+        'pos': {'x': 0, 'y': 0, 'w': 24, 'h': 1},
+    },
+    {
+        'id': 'c1',
+        'type': 'chart',
+        'inline': {
+            'modelId': 'dm_fin_daily_report',
+            'native': {
+                'index': 'fin_daily_report',
+                'body': {
+                    'query': {
+                        'bool': {
+                            'must': [{'term': {'strategy.keyword': '{{strategy}}'}}],
+                            'must_not': [{'term': {'symbol.keyword': '__MARKET__'}}],
+                        }
+                    },
+                    'size': 200,
+                    'sort': [{'score': 'desc'}],
+                },
+            },
+            'chartSpec': {
+                'type': 'table',
+                'x': 'name',
+                'ys': [
+                    {'field': 'market', 'agg': 'none'},
+                    {'field': 'close', 'agg': 'none'},
+                    {'field': 'change_pct', 'agg': 'none'},
+                    {'field': 'action', 'agg': 'none'},
+                    {'field': 'score', 'agg': 'none'},
+                    {'field': 'reason', 'agg': 'none'},
+                ],
+                'style': {'title': '决策报告(按所选策略)'},
+            },
+        },
+        'pos': {'x': 0, 'y': 1, 'w': 24, 'h': 8},
+        'props': {'title': '每日决策报告'},
+        'subscribe': True,
+    },
     _scomp('c2', 'sh600519', _MA_YS, '贵州茅台 收盘/MA20/MA60(A股)', 0, 9, 12, 7),
     _scomp('c3', '00700', _MA_YS, '腾讯控股 收盘/MA20/MA60(港股)', 12, 9, 12, 7),
     _scomp('c4', 'AAPL', _MA_YS, '苹果 收盘/MA20/MA60(美股)', 0, 15, 12, 7),
-    {'id': 'c5', 'type': 'chart',
-     'inline': {'modelId': 'dm_fin_daily_report',
-                'native': {'index': 'fin_daily_report',
-                           'body': {'query': {'bool': {'must': [{'term': {'symbol.keyword': '__MARKET__'}},
-                                                                {'term': {'strategy.keyword': '{{strategy}}'}}]}},
-                                    'size': 50}},
-                'chartSpec': {'type': 'bar', 'x': 'name', 'ys': [{'field': 'score', 'agg': 'sum'}],
-                              'style': {'title': '各市场多头广度(%,按所选策略)', 'label': True}}},
-     'pos': {'x': 12, 'y': 15, 'w': 12, 'h': 7}, 'props': {'title': '各市场多头广度'}, 'subscribe': True},
+    {
+        'id': 'c5',
+        'type': 'chart',
+        'inline': {
+            'modelId': 'dm_fin_daily_report',
+            'native': {
+                'index': 'fin_daily_report',
+                'body': {
+                    'query': {
+                        'bool': {
+                            'must': [
+                                {'term': {'symbol.keyword': '__MARKET__'}},
+                                {'term': {'strategy.keyword': '{{strategy}}'}},
+                            ]
+                        }
+                    },
+                    'size': 50,
+                },
+            },
+            'chartSpec': {
+                'type': 'bar',
+                'x': 'name',
+                'ys': [{'field': 'score', 'agg': 'sum'}],
+                'style': {'title': '各市场多头广度(%,按所选策略)', 'label': True},
+            },
+        },
+        'pos': {'x': 12, 'y': 15, 'w': 12, 'h': 7},
+        'props': {'title': '各市场多头广度'},
+        'subscribe': True,
+    },
 ]
 STOCK_DASH_CANVAS = {'mode': 'matrix', 'cols': 24}
 
@@ -1768,14 +1973,20 @@ STOCK_APP_CONFIG = {
         '腾讯控股 MACD 与 KDJ 当前状态如何?结合评分给出研判',
     ],
     'quickCommands': [
-        {'name': '策略对比', 'content': '贵州茅台在趋势跟随/成长质量/热点事件三套策略下的评分与action对比,并说明为何不同'},
+        {
+            'name': '策略对比',
+            'content': '贵州茅台在趋势跟随/成长质量/热点事件三套策略下的评分与action对比,并说明为何不同',
+        },
         {'name': '趋势选股', 'content': '用「趋势跟随」策略,三大市场评分 Top5 个股,表格展示 market/name/action/score'},
         {'name': '成长选股', 'content': '用「成长质量」策略,A股自选股评分 Top5,附净利同比/ROE'},
         {'name': '事件选股', 'content': '用「热点事件」策略,评分靠前且有新闻催化的个股'},
         {'name': 'K线均线', 'content': '贵州茅台近120日收盘价叠加 MA20/MA60 折线图'},
     ],
-    'toolIds': [], 'datasetIds': [], 'datasourceCodes': [ES, AK],
-    'enableMemory': False, 'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
+    'toolIds': [],
+    'datasetIds': [],
+    'datasourceCodes': [ES, AK],
+    'enableMemory': False,
+    'model': {'modelId': 0, 'temperature': None, 'maxTokens': None},
 }
 
 # 定时任务联动:APScheduler 从 sys_job 表加载调度(invoke_target=dispatch.run_task, job_args=task_id),
@@ -1809,12 +2020,36 @@ VALUES (:id,:did,'current',:content,'admin',:now,:tenant)""")
 # 演示指标(语义层):绑定 demo 模型,agent 命中即用 query_metric 取权威一致的数(避开 ES 声明式聚合不可靠)。
 # (code, name, caliber, model_id, measure, dimensions, time_field, unit)
 _METRICS = [
-    ('industry_pe_avg', '行业加权市盈率', '巨潮资讯·证监会行业分类的加权静态市盈率,按行业汇总(pe_weighted 均值)。',
-     'dm_fin_industry_pe', '{"agg":"avg","field":"pe_weighted"}', '[{"field":"industry_name","name":"行业"}]', None, '倍'),
-    ('market_main_net', '大盘主力净流入', '沪深两市主力资金每日净流入额(元,正=净流入/负=净流出),按日期。',
-     'dm_fin_market_fund_flow', '{"agg":"sum","field":"main_net"}', '[{"field":"date","name":"日期"}]', 'date', '元'),
-    ('index_close', '指数收盘价', '主要指数(上证/深证/沪深300/创业板)每日收盘价,按指数与日期。',
-     'dm_fin_index_daily', '{"agg":"avg","field":"close"}', '[{"field":"name","name":"指数"},{"field":"date","name":"日期"}]', 'date', '点'),
+    (
+        'industry_pe_avg',
+        '行业加权市盈率',
+        '巨潮资讯·证监会行业分类的加权静态市盈率,按行业汇总(pe_weighted 均值)。',
+        'dm_fin_industry_pe',
+        '{"agg":"avg","field":"pe_weighted"}',
+        '[{"field":"industry_name","name":"行业"}]',
+        None,
+        '倍',
+    ),
+    (
+        'market_main_net',
+        '大盘主力净流入',
+        '沪深两市主力资金每日净流入额(元,正=净流入/负=净流出),按日期。',
+        'dm_fin_market_fund_flow',
+        '{"agg":"sum","field":"main_net"}',
+        '[{"field":"date","name":"日期"}]',
+        'date',
+        '元',
+    ),
+    (
+        'index_close',
+        '指数收盘价',
+        '主要指数(上证/深证/沪深300/创业板)每日收盘价,按指数与日期。',
+        'dm_fin_index_daily',
+        '{"agg":"avg","field":"close"}',
+        '[{"field":"name","name":"指数"},{"field":"date","name":"日期"}]',
+        'date',
+        '点',
+    ),
 ]
 _METRIC_SQL = text("""INSERT INTO data_metric (name,code,caliber,model_id,measure,dimensions,time_field,unit,status,built_in,create_by,create_time,tenant_id)
 VALUES (:name,:code,:caliber,:model_id,:measure,:dims,:tf,:unit,'0','1','admin',:now,:tenant)""")
@@ -1913,45 +2148,124 @@ def seed_metadata() -> int:
         # 演示多图看板:A股市场总览(先删后插,幂等)
         db.execute(text('DELETE FROM data_dashboard_canvas WHERE dashboard_id=:id'), {'id': DASH_ID})
         db.execute(text('DELETE FROM data_dashboard WHERE id=:id'), {'id': DASH_ID})
-        db.execute(_DASH_SQL, {'id': DASH_ID, 'name': 'A股市场总览(Demo)',
-                               'remark': '指数日线/行业涨跌幅/概念涨幅/大盘资金流/行业市盈率 多图总览(全部基于 demo 真实数据)',
-                               'now': now, 'tenant': TENANT})
-        db.execute(_DASHC_SQL, {'id': DASH_ID + '_canvas', 'did': DASH_ID,
-                                'content': json.dumps({'canvas': DASH_CANVAS, 'components': DASH_COMPONENTS, 'filters': []}, ensure_ascii=False),
-                                'now': now, 'tenant': TENANT})
+        db.execute(
+            _DASH_SQL,
+            {
+                'id': DASH_ID,
+                'name': 'A股市场总览(Demo)',
+                'remark': '指数日线/行业涨跌幅/概念涨幅/大盘资金流/行业市盈率 多图总览(全部基于 demo 真实数据)',
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
+        db.execute(
+            _DASHC_SQL,
+            {
+                'id': DASH_ID + '_canvas',
+                'did': DASH_ID,
+                'content': json.dumps(
+                    {'canvas': DASH_CANVAS, 'components': DASH_COMPONENTS, 'filters': []}, ensure_ascii=False
+                ),
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
         # 红利低波专题:AI 应用 + 看板(先删后插,幂等)
         db.execute(text('DELETE FROM ai_app WHERE app_id=:id'), {'id': DIV_APP_ID})
-        db.execute(_APP_SQL, {'id': DIV_APP_ID, 'name': '红利低波数据分析助手',
-                              'desc': '中证红利低波动指数(H30269)估值/性价比/择时分析,对话取数+绘图',
-                              'atype': '数据分析', 'config': json.dumps(DIV_APP_CONFIG, ensure_ascii=False),
-                              'now': now, 'tenant': TENANT})
+        db.execute(
+            _APP_SQL,
+            {
+                'id': DIV_APP_ID,
+                'name': '红利低波数据分析助手',
+                'desc': '中证红利低波动指数(H30269)估值/性价比/择时分析,对话取数+绘图',
+                'atype': '数据分析',
+                'config': json.dumps(DIV_APP_CONFIG, ensure_ascii=False),
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
         db.execute(text('DELETE FROM data_dashboard_canvas WHERE dashboard_id=:id'), {'id': DIV_DASH_ID})
         db.execute(text('DELETE FROM data_dashboard WHERE id=:id'), {'id': DIV_DASH_ID})
-        db.execute(_DASH_SQL, {'id': DIV_DASH_ID, 'name': '红利低波指数估值/性价比(Demo)',
-                               'remark': '指数点位/PE全历史 + 股息率 + 10年国债 + 估值明细,红利低波三重黄金坑监控',
-                               'now': now, 'tenant': TENANT})
-        db.execute(_DASHC_SQL, {'id': DIV_DASH_ID + '_canvas', 'did': DIV_DASH_ID,
-                                'content': json.dumps({'canvas': DIV_DASH_CANVAS, 'components': DIV_DASH_COMPONENTS, 'filters': DIV_DASH_FILTERS}, ensure_ascii=False),
-                                'now': now, 'tenant': TENANT})
+        db.execute(
+            _DASH_SQL,
+            {
+                'id': DIV_DASH_ID,
+                'name': '红利低波指数估值/性价比(Demo)',
+                'remark': '指数点位/PE全历史 + 股息率 + 10年国债 + 估值明细,红利低波三重黄金坑监控',
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
+        db.execute(
+            _DASHC_SQL,
+            {
+                'id': DIV_DASH_ID + '_canvas',
+                'did': DIV_DASH_ID,
+                'content': json.dumps(
+                    {'canvas': DIV_DASH_CANVAS, 'components': DIV_DASH_COMPONENTS, 'filters': DIV_DASH_FILTERS},
+                    ensure_ascii=False,
+                ),
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
         # 每日多市场股票分析:AI 应用 9003 + 决策看板(先删后插,幂等)
         db.execute(text('DELETE FROM ai_app WHERE app_id=:id'), {'id': STOCK_APP_ID})
-        db.execute(_APP_SQL, {'id': STOCK_APP_ID, 'name': '每日多市场股票分析助手',
-                              'desc': 'A股/港股/美股自选股技术指标与每日决策报告,对话取数+绘图',
-                              'atype': '数据分析', 'config': json.dumps(STOCK_APP_CONFIG, ensure_ascii=False),
-                              'now': now, 'tenant': TENANT})
+        db.execute(
+            _APP_SQL,
+            {
+                'id': STOCK_APP_ID,
+                'name': '每日多市场股票分析助手',
+                'desc': 'A股/港股/美股自选股技术指标与每日决策报告,对话取数+绘图',
+                'atype': '数据分析',
+                'config': json.dumps(STOCK_APP_CONFIG, ensure_ascii=False),
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
         db.execute(text('DELETE FROM data_dashboard_canvas WHERE dashboard_id=:id'), {'id': STOCK_DASH_ID})
         db.execute(text('DELETE FROM data_dashboard WHERE id=:id'), {'id': STOCK_DASH_ID})
-        db.execute(_DASH_SQL, {'id': STOCK_DASH_ID, 'name': '每日多市场股票分析(Demo)',
-                               'remark': '决策报告表 + A股/港股/美股代表股K线均线 + 各市场多头广度(对标 daily_stock_analysis)',
-                               'now': now, 'tenant': TENANT})
-        db.execute(_DASHC_SQL, {'id': STOCK_DASH_ID + '_canvas', 'did': STOCK_DASH_ID,
-                                'content': json.dumps({'canvas': STOCK_DASH_CANVAS, 'components': STOCK_DASH_COMPONENTS, 'filters': STOCK_DASH_FILTERS}, ensure_ascii=False),
-                                'now': now, 'tenant': TENANT})
+        db.execute(
+            _DASH_SQL,
+            {
+                'id': STOCK_DASH_ID,
+                'name': '每日多市场股票分析(Demo)',
+                'remark': '决策报告表 + A股/港股/美股代表股K线均线 + 各市场多头广度(对标 daily_stock_analysis)',
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
+        db.execute(
+            _DASHC_SQL,
+            {
+                'id': STOCK_DASH_ID + '_canvas',
+                'did': STOCK_DASH_ID,
+                'content': json.dumps(
+                    {'canvas': STOCK_DASH_CANVAS, 'components': STOCK_DASH_COMPONENTS, 'filters': STOCK_DASH_FILTERS},
+                    ensure_ascii=False,
+                ),
+                'now': now,
+                'tenant': TENANT,
+            },
+        )
         # 演示指标(语义层,先删后插,幂等)
         for code_, name_, cal_, mid_, meas_, dims_, tf_, unit_ in _METRICS:
             db.execute(text('DELETE FROM data_metric WHERE code=:c'), {'c': code_})
-            db.execute(_METRIC_SQL, {'name': name_, 'code': code_, 'caliber': cal_, 'model_id': mid_,
-                                     'measure': meas_, 'dims': dims_, 'tf': tf_, 'unit': unit_, 'now': now, 'tenant': TENANT})
+            db.execute(
+                _METRIC_SQL,
+                {
+                    'name': name_,
+                    'code': code_,
+                    'caliber': cal_,
+                    'model_id': mid_,
+                    'measure': meas_,
+                    'dims': dims_,
+                    'tf': tf_,
+                    'unit': unit_,
+                    'now': now,
+                    'tenant': TENANT,
+                },
+            )
         db.commit()
         return len(TASKS)
     except Exception:

@@ -37,6 +37,7 @@ class ReadOnlyHandler:
     def __getattr__(self, name: str) -> Any:
         # 类上未显式定义的属性才会走到这里(query/__init__ 已定义,不受影响)
         if name in _BLOCKED_METHODS:
+
             def _blocked(*_a: Any, **_k: Any) -> Any:
                 raise PermissionError(f'沙箱取数为只读,禁止 {name}():写入/装载请用数据集成任务')
 

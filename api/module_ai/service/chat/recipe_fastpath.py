@@ -83,7 +83,9 @@ async def stream_recipe_fastpath(
     from module_ai.tools.sandbox_code_tools import SandboxCodeTools
 
     yield json.dumps({'session_id': session_id, 'type': 'meta'}) + '\n'
-    yield json.dumps({'content': '🔖 命中已验证解法,直接执行(未经模型)…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
+    yield (
+        json.dumps({'content': '🔖 命中已验证解法,直接执行(未经模型)…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
+    )
     arts: list = []
     try:
         tools = SandboxCodeTools(artifacts=arts, allowed_codes=datasource_scope, enable_datasource=True)
@@ -96,7 +98,10 @@ async def stream_recipe_fastpath(
     _FAIL_PREFIX = ('执行失败', '查询失败', '调用沙箱失败', '数据源解析失败', '查询未执行', '该应用未授权')
     if isinstance(text, str) and text.startswith(_FAIL_PREFIX):
         logger.info(f'[recipe-fastpath] 解法执行失败,回退模型: {text[:80]}')
-        yield json.dumps({'content': '已验证解法这次没跑通,转由模型继续处理…\n', 'type': 'content'}, ensure_ascii=False) + '\n'
+        yield (
+            json.dumps({'content': '已验证解法这次没跑通,转由模型继续处理…\n', 'type': 'content'}, ensure_ascii=False)
+            + '\n'
+        )
         yield RECIPE_FALLBACK
         return
     # 成功:先排空图表/表格产物,再吐结果文本 + 快路 metrics(标注未经模型、零 token)
@@ -104,7 +109,12 @@ async def stream_recipe_fastpath(
         yield json.dumps({'artifact': a, 'type': 'artifact'}, ensure_ascii=False) + '\n'
     if text:
         yield json.dumps({'content': str(text), 'type': 'content'}, ensure_ascii=False) + '\n'
-    yield json.dumps({'metrics': {'fastPath': True, 'inputTokens': 0, 'outputTokens': 0, 'totalTokens': 0}, 'type': 'metrics'}) + '\n'
+    yield (
+        json.dumps(
+            {'metrics': {'fastPath': True, 'inputTokens': 0, 'outputTokens': 0, 'totalTokens': 0}, 'type': 'metrics'}
+        )
+        + '\n'
+    )
     if out is not None:
         out['answer'] = str(text) if text else ''  # 供上层落会话记录
     logger.info(f'[recipe-fastpath] 命中直跑成功: ds={datasource_code}')
@@ -134,8 +144,14 @@ async def persist_fastpath_turn(session_id: str, user_id: int, question: str, an
             # agent_id='chat-agent' 使会话进入普通对话列表(get_sessions 按 component_id 过滤);
             # session_data/agent_data 置空 dict,对齐 agno 正常会话、避免 transcript 读取 NoneType。
             sess = AgentSession(
-                session_id=session_id, user_id=uid, agent_id='chat-agent',
-                runs=[], session_data={}, agent_data={}, created_at=ts, updated_at=ts,
+                session_id=session_id,
+                user_id=uid,
+                agent_id='chat-agent',
+                runs=[],
+                session_data={},
+                agent_data={},
+                created_at=ts,
+                updated_at=ts,
             )
         run = RunOutput(
             run_id=str(_uuid.uuid4()),

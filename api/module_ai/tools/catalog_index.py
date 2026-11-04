@@ -22,8 +22,8 @@ CATALOG_INDEX = 'ez_catalog_index'
 
 # 域路由(借鉴 Uber QueryGPT「纯 RAG 大 schema 不 scale」教训):先多召回候选看源分布,
 # 只保留相关度最高的前 N 个数据源,再域内取 Top-K,避免大库跨源把 Top-K 摊薄。
-_OVERSAMPLE = 3           # 先召回 k*_OVERSAMPLE 个候选
-_ROUTER_MAX_SOURCES = 3   # 保留相关度最高的前 N 个源
+_OVERSAMPLE = 3  # 先召回 k*_OVERSAMPLE 个候选
+_ROUTER_MAX_SOURCES = 3  # 保留相关度最高的前 N 个源
 
 
 def _route_topk(cand: list[dict], k: int) -> tuple[list[dict], int, int]:
@@ -37,7 +37,7 @@ def _route_topk(cand: list[dict], k: int) -> tuple[list[dict], int, int]:
     ranked = sorted(by_src, key=lambda s: max((x.get('score') or 0) for x in by_src[s]), reverse=True)
     kept = set(ranked[:_ROUTER_MAX_SOURCES])
     focused = [c for c in cand if c.get('datasource_code') in kept]
-    focused.sort(key=lambda x: (x.get('score') or 0), reverse=True)
+    focused.sort(key=lambda x: x.get('score') or 0, reverse=True)
     return focused[:k], len(by_src), len(kept)
 
 
@@ -265,7 +265,9 @@ class CatalogRetrievalService:
         for (obj, name, remark, tid), vec in zip(rows, vecs):
             tids = str(tid) if tid is not None else ''
             chunks.append(
-                _chunk(_cid(tids, datasource_code, obj), tids, datasource_code, obj, name or '', stype, remark or '', vec)
+                _chunk(
+                    _cid(tids, datasource_code, obj), tids, datasource_code, obj, name or '', stype, remark or '', vec
+                )
             )
         store.add(chunks)
         logger.info(f'[catalog_index] synced datasource {datasource_code}: {len(chunks)} tables')

@@ -17,8 +17,21 @@ _SQL_FAMILIES = {'rdbms', 'timeseries'}
 
 # 稍弱模型识别(按 model_code 关键词粗判):用于对"一次性结构化生成"追加强化尾注,压制解释/围栏/思考过程
 _WEAK_MODEL_HINTS = (
-    'haiku', 'mini', 'flash', 'turbo', 'lite', 'small', 'nano', 'gemma', 'phi',
-    '1.5b', '3b', '4b', '7b', '8b', '9b',
+    'haiku',
+    'mini',
+    'flash',
+    'turbo',
+    'lite',
+    'small',
+    'nano',
+    'gemma',
+    'phi',
+    '1.5b',
+    '3b',
+    '4b',
+    '7b',
+    '8b',
+    '9b',
 )
 # 一次性结构化生成(查询/代码/图表配置)的弱模型强化:逼齐格式、去噪
 WEAK_OUTPUT_REINFORCE = (

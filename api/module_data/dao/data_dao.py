@@ -79,13 +79,17 @@ class DataModelDao:
     async def get_custom_query(cls, db: AsyncSession, datasource_code: str) -> DataModel | None:
         """取该数据源的 custom_query 模型(对话图表存看板复用,每源一个)。"""
         return (
-            await db.execute(
-                select(DataModel).where(
-                    DataModel.datasource_code == datasource_code,
-                    DataModel.kind == 'custom_query',
+            (
+                await db.execute(
+                    select(DataModel).where(
+                        DataModel.datasource_code == datasource_code,
+                        DataModel.kind == 'custom_query',
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
     @classmethod
     async def add(cls, db: AsyncSession, obj: dict[str, Any]) -> DataModel:
@@ -148,7 +152,9 @@ class DashboardDao:
         return (await db.execute(select(Dashboard).where(Dashboard.id == did))).scalars().first()
 
     @classmethod
-    async def get_list(cls, db: AsyncSession, dash_type: str | None = None, model_id: str | None = None) -> list[Dashboard]:
+    async def get_list(
+        cls, db: AsyncSession, dash_type: str | None = None, model_id: str | None = None
+    ) -> list[Dashboard]:
         stmt = select(Dashboard).order_by(Dashboard.update_time.desc())
         if dash_type:
             stmt = stmt.where(Dashboard.dash_type == dash_type)
@@ -186,8 +192,10 @@ class DashboardCanvasDao:
     @classmethod
     async def get_by_dashboard(cls, db: AsyncSession, dashboard_id: str) -> DashboardCanvas | None:
         return (
-            await db.execute(select(DashboardCanvas).where(DashboardCanvas.dashboard_id == dashboard_id))
-        ).scalars().first()
+            (await db.execute(select(DashboardCanvas).where(DashboardCanvas.dashboard_id == dashboard_id)))
+            .scalars()
+            .first()
+        )
 
     @classmethod
     async def list_by_dashboards(cls, db: AsyncSession, dashboard_ids: list[str]) -> dict[str, DashboardCanvas]:
@@ -195,8 +203,10 @@ class DashboardCanvasDao:
         if not dashboard_ids:
             return {}
         rows = (
-            await db.execute(select(DashboardCanvas).where(DashboardCanvas.dashboard_id.in_(dashboard_ids)))
-        ).scalars().all()
+            (await db.execute(select(DashboardCanvas).where(DashboardCanvas.dashboard_id.in_(dashboard_ids))))
+            .scalars()
+            .all()
+        )
         return {r.dashboard_id: r for r in rows}
 
     @classmethod

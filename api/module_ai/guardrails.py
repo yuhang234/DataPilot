@@ -20,8 +20,15 @@ class DangerousIntentGuardrail(BaseGuardrail):
     """拦高危写操作/删库意图。规则式,兜常见套路;不替代权限与只读护栏。"""
 
     _BAD = (
-        'drop table', 'drop database', 'truncate table', 'delete from',
-        'format c:', 'rm -rf', '删库', '清空所有数据', '格式化硬盘',
+        'drop table',
+        'drop database',
+        'truncate table',
+        'delete from',
+        'format c:',
+        'rm -rf',
+        '删库',
+        '清空所有数据',
+        '格式化硬盘',
     )
 
     def _hit(self, run_input: Any) -> str | None:
@@ -42,9 +49,28 @@ class DangerousIntentGuardrail(BaseGuardrail):
 
 # 内置 PromptInjectionGuardrail 仅含英文模式;本平台以中文为主,补中文注入套路。
 _ZH_INJECTION_PATTERNS = [
-    '忽略以上', '忽略之前', '忽略上述', '忽略前面', '无视以上', '无视之前', '无视上述',
-    '忘记之前', '忘记以上', '你现在是', '现在你是', '从现在起你是', '假装你是', '假装成',
-    '扮演', '进入开发者模式', '开发者模式', '越狱', '系统提示词', '绕过限制', '解除限制', '管理员权限',
+    '忽略以上',
+    '忽略之前',
+    '忽略上述',
+    '忽略前面',
+    '无视以上',
+    '无视之前',
+    '无视上述',
+    '忘记之前',
+    '忘记以上',
+    '你现在是',
+    '现在你是',
+    '从现在起你是',
+    '假装你是',
+    '假装成',
+    '扮演',
+    '进入开发者模式',
+    '开发者模式',
+    '越狱',
+    '系统提示词',
+    '绕过限制',
+    '解除限制',
+    '管理员权限',
 ]
 
 

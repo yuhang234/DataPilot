@@ -23,7 +23,8 @@ def _flatten_aggs(aggs: dict, base: dict | None = None) -> list[dict]:
     bucket_aggs = {n: a for n, a in aggs.items() if isinstance(a, dict) and 'buckets' in a}
     # top_hits 聚合(argmax/取样代表行):形如 {"hits":{"hits":[{"_source":..},..]}}
     top_hits = {
-        n: a for n, a in aggs.items()
+        n: a
+        for n, a in aggs.items()
         if isinstance(a, dict) and isinstance(a.get('hits'), dict) and isinstance(a['hits'].get('hits'), list)
     }
     # 同层的指标聚合 → 直接作为列
@@ -60,7 +61,12 @@ class ElasticsearchHandler(Connector):
     title = 'Elasticsearch'
     family = 'search'
     capabilities = (
-        Capability.READ | Capability.WRITE | Capability.EXTRACT | Capability.SCHEMA | Capability.GEN_API | Capability.AGGREGATE
+        Capability.READ
+        | Capability.WRITE
+        | Capability.EXTRACT
+        | Capability.SCHEMA
+        | Capability.GEN_API
+        | Capability.AGGREGATE
     )
     # append 带 id_field/_id 即同键覆写(等价 upsert);replace 删索引重建。merge 语义归 append+id_field,不单列。
     write_modes = ('append', 'replace')

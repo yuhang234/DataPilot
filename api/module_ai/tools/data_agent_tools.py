@@ -301,7 +301,12 @@ _CATALOG_REMARK_CAP = 60  # Tier B 每表备注截断(注入压缩;完整语义�
 
 
 def build_data_catalog(
-    allowed_codes: list | None = None, *, question: str | None = None, k: int = 8, max_sources: int = 30, max_tables: int = 12
+    allowed_codes: list | None = None,
+    *,
+    question: str | None = None,
+    k: int = 8,
+    max_sources: int = 30,
+    max_tables: int = 12,
 ) -> str:
     """构造数据目录注入 system prompt,减少 agent 发现往返。
 
@@ -347,11 +352,14 @@ def _retrieved_catalog(allowed_codes: list | None, question: str, k: int, max_so
         if not sources:
             return None
         codes = [s['code'] for s in sources]
-        total = db.execute(
-            select(func.count()).select_from(DataModel).where(
-                DataModel.datasource_code.in_(codes), DataModel.status == 1, DataModel.object_name != ''
-            )
-        ).scalar() or 0
+        total = (
+            db.execute(
+                select(func.count())
+                .select_from(DataModel)
+                .where(DataModel.datasource_code.in_(codes), DataModel.status == 1, DataModel.object_name != '')
+            ).scalar()
+            or 0
+        )
     finally:
         db.close()
     if total <= _CATALOG_RETRIEVAL_MIN_TABLES:

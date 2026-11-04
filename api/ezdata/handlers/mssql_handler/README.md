@@ -305,6 +305,7 @@ SELECT * FROM mssql_datasource (
     6. **Test connection manually**: 
        ```python
        import pyodbc
+
        print(pyodbc.drivers())  # Should list available drivers
        ```
 </Warning>

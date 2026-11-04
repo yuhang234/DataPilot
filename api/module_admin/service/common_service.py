@@ -334,9 +334,7 @@ class CommonService:
                     return cls._aiter_sync(storage.load_range(object_key, br.start, br.length))
             else:
                 storage_root = (
-                    UploadConfig.UPLOAD_PATH
-                    if file_info.access_type == 'public'
-                    else UploadConfig.PRIVATE_UPLOAD_PATH
+                    UploadConfig.UPLOAD_PATH if file_info.access_type == 'public' else UploadConfig.PRIVATE_UPLOAD_PATH
                 )
                 filepath = FilePathUtil.resolve_file_within_root(storage_root, file_info.storage_key)
                 file_size = filepath.stat().st_size

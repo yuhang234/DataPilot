@@ -29,9 +29,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     now = datetime.now()
     for name, target, cron in _JOBS:
-        exists = bind.execute(
-            sa.text('SELECT 1 FROM sys_job WHERE invoke_target = :t LIMIT 1'), {'t': target}
-        ).first()
+        exists = bind.execute(sa.text('SELECT 1 FROM sys_job WHERE invoke_target = :t LIMIT 1'), {'t': target}).first()
         if exists:
             continue
         bind.execute(
@@ -41,8 +39,18 @@ def upgrade() -> None:
                 'VALUES (:n, :g, :e, :t, :c, :m, :cc, :s, :cb, :ct, :r, :tid)'
             ),
             {
-                'n': name, 'g': 'default', 'e': 'default', 't': target, 'c': cron,
-                'm': '3', 'cc': '1', 's': '1', 'cb': 'admin', 'ct': now, 'r': '文件管理维护(默认暂停)', 'tid': 100,
+                'n': name,
+                'g': 'default',
+                'e': 'default',
+                't': target,
+                'c': cron,
+                'm': '3',
+                'cc': '1',
+                's': '1',
+                'cb': 'admin',
+                'ct': now,
+                'r': '文件管理维护(默认暂停)',
+                'tid': 100,
             },
         )
 

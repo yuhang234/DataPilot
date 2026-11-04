@@ -16,11 +16,11 @@ CASES_DIR = os.path.join(os.path.dirname(__file__), 'cases')
 class EvalCase:
     id: str
     question: str
-    model_id: int = 0                       # 0 = 环境兜底模型;>0 = 指定模型(A/B 用)
-    app_id: str | None = None               # 指定应用(带工具/数据源范围)
-    runs: int = 3                            # 重跑次数(弱模型稳定性 → 通过率)
+    model_id: int = 0  # 0 = 环境兜底模型;>0 = 指定模型(A/B 用)
+    app_id: str | None = None  # 指定应用(带工具/数据源范围)
+    runs: int = 3  # 重跑次数(弱模型稳定性 → 通过率)
     tags: list[str] = field(default_factory=list)
-    checks: list[dict] = field(default_factory=list)   # [{type: ..., <参数>}]
+    checks: list[dict] = field(default_factory=list)  # [{type: ..., <参数>}]
     known_tables: list[str] = field(default_factory=list)  # no_hallucinated_table 用
     fixtures: list[str] = field(default_factory=list)  # replay 模式:该用例的录制文件(相对 fixtures/)
 

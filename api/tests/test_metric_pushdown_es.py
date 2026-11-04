@@ -20,7 +20,11 @@ _ES_COLS = {'dt': 'date', 'symbol': 'keyword', 'sector': 'text', 'sector.keyword
 
 def _norm(rows):
     def cell(v):
-        return round(float(v), 4) if isinstance(v, (int, float)) and not isinstance(v, bool) else (None if v is None else str(v))
+        return (
+            round(float(v), 4)
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+            else (None if v is None else str(v))
+        )
 
     return sorted(tuple(sorted((k, cell(v)) for k, v in r.items())) for r in rows)
 
@@ -42,8 +46,11 @@ def test_es_build_request_group_by_metric():
 
 def test_es_build_request_filters_and_time_range():
     spec = AggSpec(
-        table='idx', measure={'agg': 'sum', 'field': 'amount'}, group_by=['sector'],
-        filters={'sector': 'bank', 'symbol': ['000001', '600519']}, time_field='dt',
+        table='idx',
+        measure={'agg': 'sum', 'field': 'amount'},
+        group_by=['sector'],
+        filters={'sector': 'bank', 'symbol': ['000001', '600519']},
+        time_field='dt',
         time_range={'start': '2024-01-01', 'end': '2024-01-31'},
     )
     body, _ = ElasticsearchHandler._build_agg_request(spec, _ES_COLS)
@@ -65,11 +72,14 @@ def test_es_build_request_count_distinct_and_count():
     assert body2['aggs']['sector']['terms']['order'] == {'_count': 'desc'}
 
 
-@pytest.mark.parametrize('bad', [
-    AggSpec(table='idx', measure={'agg': 'sum', 'field': 'amount'}, group_by=['sector', 'symbol']),  # 多维
-    AggSpec(table='idx', measure={'agg': 'sum', 'field': 'amount'}, time_field='dt', grain='month'),  # grain
-    AggSpec(table='idx', measure={'agg': 'median', 'field': 'amount'}),  # 非法聚合
-])
+@pytest.mark.parametrize(
+    'bad',
+    [
+        AggSpec(table='idx', measure={'agg': 'sum', 'field': 'amount'}, group_by=['sector', 'symbol']),  # 多维
+        AggSpec(table='idx', measure={'agg': 'sum', 'field': 'amount'}, time_field='dt', grain='month'),  # grain
+        AggSpec(table='idx', measure={'agg': 'median', 'field': 'amount'}),  # 非法聚合
+    ],
+)
 def test_es_unsupported_shapes_raise(bad):
     with pytest.raises(AggNotSupported):
         ElasticsearchHandler._build_agg_request(bad, _ES_COLS)
@@ -104,18 +114,26 @@ def _es_handler(fake):
 
 
 def test_es_aggregate_group_by_maps_rows():
-    resp = {'aggregations': {'sector': {'buckets': [
-        {'key': 'insurance', 'doc_count': 1, 'value': {'value': 300.0}},
-        {'key': 'bank', 'doc_count': 2, 'value': {'value': 260.0}},
-        {'key': 'baijiu', 'doc_count': 2, 'value': {'value': 250.0}},
-    ]}}}
+    resp = {
+        'aggregations': {
+            'sector': {
+                'buckets': [
+                    {'key': 'insurance', 'doc_count': 1, 'value': {'value': 300.0}},
+                    {'key': 'bank', 'doc_count': 2, 'value': {'value': 260.0}},
+                    {'key': 'baijiu', 'doc_count': 2, 'value': {'value': 250.0}},
+                ]
+            }
+        }
+    }
     h = _es_handler(_FakeES(search_resp=resp))
     out = h.aggregate(AggSpec(table='idx', measure={'agg': 'sum', 'field': 'amount'}, group_by=['sector']))
-    assert _norm(out) == _norm([
-        {'sector': 'insurance', 'value': 300.0},
-        {'sector': 'bank', 'value': 260.0},
-        {'sector': 'baijiu', 'value': 250.0},
-    ])
+    assert _norm(out) == _norm(
+        [
+            {'sector': 'insurance', 'value': 300.0},
+            {'sector': 'bank', 'value': 260.0},
+            {'sector': 'baijiu', 'value': 250.0},
+        ]
+    )
     assert h._client.last_search['body']['aggs']['sector']['terms']['field'] == 'sector.keyword'
 
 

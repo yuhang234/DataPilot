@@ -23,8 +23,8 @@ def build_metric_catalog(metrics: list[dict] | None) -> str:
     ]
     for m in metrics:
         dims = '/'.join(m.get('dimensions') or []) or '无'
-        unit = f";单位 {m['unit']}" if m.get('unit') else ''
-        lines.append(f"- `{m.get('code')}`:{m.get('name')} —— {m.get('caliber') or ''}(可分组维度: {dims}{unit})")
+        unit = f';单位 {m["unit"]}' if m.get('unit') else ''
+        lines.append(f'- `{m.get("code")}`:{m.get("name")} —— {m.get("caliber") or ""}(可分组维度: {dims}{unit})')
     return '\n'.join(lines)
 
 
@@ -47,7 +47,7 @@ class MetricTools(Toolkit):
         if not cat:
             return '无匹配指标'
         return '\n'.join(
-            f"{m['code']}: {m['name']} — {m['caliber']} (维度: {'/'.join(m['dimensions']) or '无'}{'; 单位:' + m['unit'] if m['unit'] else ''})"
+            f'{m["code"]}: {m["name"]} — {m["caliber"]} (维度: {"/".join(m["dimensions"]) or "无"}{"; 单位:" + m["unit"] if m["unit"] else ""})'
             for m in cat
         )
 

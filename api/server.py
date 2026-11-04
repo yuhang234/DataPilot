@@ -204,7 +204,7 @@ def create_app() -> FastAPI:
 
     # Prometheus 指标端点(免鉴权,供采集器抓取;生产可在网关/防火墙限制来源)
     @app.get('/metrics', include_in_schema=False)
-    async def _prometheus_metrics():  # noqa: ANN202
+    async def _prometheus_metrics():
         from starlette.responses import Response as _Resp
 
         from common.metrics import metrics_response
