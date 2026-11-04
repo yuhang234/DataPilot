@@ -1,0 +1,1874 @@
+-- ----------------------------
+-- 1、部门表
+-- ----------------------------
+drop table if exists sys_dept;
+create table sys_dept (
+    dept_id bigserial,
+    parent_id bigint default 0,
+    ancestors varchar(50) default '',
+    dept_name varchar(30) default '',
+    order_num int4 default 0,
+    leader varchar(20) default null,
+    phone varchar(11) default null,
+    email varchar(50) default null,
+    status char(1) default '0',
+    del_flag char(1) default '0',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    primary key (dept_id)
+);
+alter sequence sys_dept_dept_id_seq restart 200;
+comment on column sys_dept.dept_id is '部门id';
+comment on column sys_dept.parent_id is '父部门id';
+comment on column sys_dept.ancestors is '祖级列表';
+comment on column sys_dept.dept_name is '部门名称';
+comment on column sys_dept.order_num is '显示顺序';
+comment on column sys_dept.leader is '负责人';
+comment on column sys_dept.phone is '联系电话';
+comment on column sys_dept.email is '邮箱';
+comment on column sys_dept.status is '部门状态（0正常 1停用）';
+comment on column sys_dept.del_flag is '删除标志（0代表存在 2代表删除）';
+comment on column sys_dept.create_by is '创建者';
+comment on column sys_dept.create_time is '创建时间';
+comment on column sys_dept.update_by is '更新者';
+comment on column sys_dept.update_time is '更新时间';
+comment on table sys_dept is '部门表';
+
+-- ----------------------------
+-- 初始化-部门表数据
+-- ----------------------------
+insert into sys_dept values(100,  0,   '0',          '集团总公司',   0, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(101,  100, '0,100',      '深圳分公司', 1, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(102,  100, '0,100',      '长沙分公司', 2, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(103,  101, '0,100,101',  '研发部门',   1, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(104,  101, '0,100,101',  '市场部门',   2, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(105,  101, '0,100,101',  '测试部门',   3, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(106,  101, '0,100,101',  '财务部门',   4, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(107,  101, '0,100,101',  '运维部门',   5, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(108,  102, '0,100,102',  '市场部门',   1, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+insert into sys_dept values(109,  102, '0,100,102',  '财务部门',   2, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', current_timestamp, '', null);
+
+-- ----------------------------
+-- 2、用户信息表
+-- ----------------------------
+drop table if exists sys_user;
+create table sys_user (
+    user_id bigserial not null,
+    dept_id bigint default null,
+    user_name varchar(30) not null,
+    nick_name varchar(30) not null,
+    user_type varchar(2) default '00',
+    email varchar(50) default '',
+    phonenumber varchar(11) default '',
+    sex char(1) default '0',
+    avatar varchar(100) default '',
+    password varchar(100) default '',
+    status char(1) default '0',
+    del_flag char(1) default '0',
+    login_ip varchar(128) default '',
+    login_date timestamp(0),
+    pwd_update_date timestamp(0),
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default null,
+    primary key (user_id)
+);
+alter sequence sys_user_user_id_seq restart 100;
+comment on column sys_user.user_id is '用户ID';
+comment on column sys_user.dept_id is '部门ID';
+comment on column sys_user.user_name is '用户账号';
+comment on column sys_user.nick_name is '用户昵称';
+comment on column sys_user.user_type is '用户类型（00系统用户）';
+comment on column sys_user.email is '用户邮箱';
+comment on column sys_user.phonenumber is '手机号码';
+comment on column sys_user.sex is '用户性别（0男 1女 2未知）';
+comment on column sys_user.avatar is '头像地址';
+comment on column sys_user.password is '密码';
+comment on column sys_user.status is '帐号状态（0正常 1停用）';
+comment on column sys_user.del_flag is '删除标志（0代表存在 2代表删除）';
+comment on column sys_user.login_ip is '最后登录IP';
+comment on column sys_user.login_date is '最后登录时间';
+comment on column sys_user.pwd_update_date is '密码最后更新时间';
+comment on column sys_user.create_by is '创建者';
+comment on column sys_user.create_time is '创建时间';
+comment on column sys_user.update_by is '更新者';
+comment on column sys_user.update_time is '更新时间';
+comment on column sys_user.remark is '备注';
+comment on table sys_user is '用户信息表';
+
+-- ----------------------------
+-- 初始化-用户信息表数据
+-- ----------------------------
+insert into sys_user values(1,  103, 'admin',   '超级管理员', '00', 'niangao@163.com', '15888888888', '1', '', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', current_timestamp, current_timestamp, 'admin', current_timestamp, '', null, '管理员');
+insert into sys_user values(2,  105, 'test', '测试用户', 			'00', 'test@qq.com',  '15666666666', '1', '', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', current_timestamp, current_timestamp, 'admin', current_timestamp, '', null, '测试员');
+
+-- ----------------------------
+-- 3、岗位信息表
+-- ----------------------------
+drop table if exists sys_post;
+create table sys_post (
+    post_id bigserial not null,
+    post_code varchar(64) not null,
+    post_name varchar(50) not null,
+    post_sort int4 not null,
+    status char(1) not null,
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default null,
+    primary key (post_id)
+);
+alter sequence sys_post_post_id_seq restart 5;
+comment on column sys_post.post_id is '岗位ID';
+comment on column sys_post.post_code is '岗位编码';
+comment on column sys_post.post_name is '岗位名称';
+comment on column sys_post.post_sort is '显示顺序';
+comment on column sys_post.status is '状态（0正常 1停用）';
+comment on column sys_post.create_by is '创建者';
+comment on column sys_post.create_time is '创建时间';
+comment on column sys_post.update_by is '更新者';
+comment on column sys_post.update_time is '更新时间';
+comment on column sys_post.remark is '备注';
+comment on table sys_post is '岗位信息表';
+
+-- ----------------------------
+-- 初始化-岗位信息表数据
+-- ----------------------------
+insert into sys_post values(1, 'ceo',  '董事长',    1, '0', 'admin', current_timestamp, '', null, '');
+insert into sys_post values(2, 'se',   '项目经理',  2, '0', 'admin', current_timestamp, '', null, '');
+insert into sys_post values(3, 'hr',   '人力资源',  3, '0', 'admin', current_timestamp, '', null, '');
+insert into sys_post values(4, 'user', '普通员工',  4, '0', 'admin', current_timestamp, '', null, '');
+
+-- ----------------------------
+-- 4、角色信息表
+-- ----------------------------
+drop table if exists sys_role;
+create table sys_role (
+    role_id bigserial not null,
+    role_name varchar(30) not null,
+    role_key varchar(100) not null,
+    role_sort int4 not null,
+    data_scope char(1) default '1',
+    menu_check_strictly smallint default 1,
+    dept_check_strictly smallint default 1,
+    status char(1) not null,
+    del_flag char(1) default '0',
+    create_by varchar(64)  default '',
+    create_time timestamp(0),
+    update_by varchar(64)  default '',
+    update_time timestamp(0),
+    remark varchar(500)  default null,
+    primary key (role_id)
+);
+alter sequence sys_role_role_id_seq restart 3;
+comment on column sys_role.role_id is '角色ID';
+comment on column sys_role.role_name is '角色名称';
+comment on column sys_role.role_key is '角色权限字符串';
+comment on column sys_role.role_sort is '显示顺序';
+comment on column sys_role.data_scope is '数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限）';
+comment on column sys_role.menu_check_strictly is '菜单树选择项是否关联显示';
+comment on column sys_role.dept_check_strictly is '部门树选择项是否关联显示';
+comment on column sys_role.status is '角色状态（0正常 1停用）';
+comment on column sys_role.del_flag is '删除标志（0代表存在 2代表删除）';
+comment on column sys_role.create_by is '创建者';
+comment on column sys_role.create_time is '创建时间';
+comment on column sys_role.update_by is '更新者';
+comment on column sys_role.update_time is '更新时间';
+comment on column sys_role.remark is '备注';
+comment on table sys_role is '角色信息表';
+
+-- ----------------------------
+-- 初始化-角色信息表数据
+-- ----------------------------
+insert into sys_role values(1, '超级管理员',  'admin',  1, 1, 1, 1, '0', '0', 'admin', current_timestamp, '', null, '超级管理员');
+insert into sys_role values(2, '普通角色',    'common', 2, 2, 1, 1, '0', '0', 'admin', current_timestamp, '', null, '普通角色');
+insert into sys_role values(3, '数据管理员',  'data_admin', 3, 1, 1, 1, '0', '0', 'admin', current_timestamp, '', null, '数据管理模块管理员:数据源/模型/查询/接口/集成/令牌');
+
+-- ----------------------------
+-- 5、菜单权限表
+-- ----------------------------
+drop table if exists sys_menu;
+create table sys_menu (
+    menu_id bigserial not null,
+    menu_name varchar(50) not null,
+    parent_id bigint default 0,
+    order_num int4 default 0,
+    path varchar(200) default '',
+    component varchar(255) default null,
+    query varchar(255) default null,
+    route_name varchar(50) default '',
+    is_frame int4 default 1,
+    is_cache int4 default 0,
+    menu_type char(1) default '',
+    visible char(1) default '0',
+    status char(1) default '0',
+    perms varchar(100) default null,
+    icon varchar(100) default '#',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default '',
+    primary key (menu_id)
+);
+alter sequence sys_menu_menu_id_seq restart 2000;
+comment on column sys_menu.menu_id is '菜单ID';
+comment on column sys_menu.menu_name is '菜单名称';
+comment on column sys_menu.parent_id is '父菜单ID';
+comment on column sys_menu.order_num is '显示顺序';
+comment on column sys_menu.path is '路由地址';
+comment on column sys_menu.component is '组件路径';
+comment on column sys_menu.query is '路由参数';
+comment on column sys_menu.route_name is '路由名称';
+comment on column sys_menu.is_frame is '是否为外链（0是 1否）';
+comment on column sys_menu.is_cache is '是否缓存（0缓存 1不缓存）';
+comment on column sys_menu.menu_type is '菜单类型（M目录 C菜单 F按钮）';
+comment on column sys_menu.visible is '菜单状态（0显示 1隐藏）';
+comment on column sys_menu.status is '菜单状态（0正常 1停用）';
+comment on column sys_menu.perms is '权限标识';
+comment on column sys_menu.icon is '菜单图标';
+comment on column sys_menu.create_by is '创建者';
+comment on column sys_menu.create_time is '创建时间';
+comment on column sys_menu.update_by is '更新者';
+comment on column sys_menu.update_time is '更新时间';
+comment on column sys_menu.remark is '备注';
+comment on table sys_menu is '菜单权限表';
+
+-- ----------------------------
+-- 初始化-菜单信息表数据
+-- ----------------------------
+-- 一级菜单
+insert into sys_menu values(1,  '系统管理', 0, '4',  'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', current_timestamp, '', null, '系统管理目录');
+insert into sys_menu values(2,  '系统监控', 0, '5',  'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', current_timestamp, '', null, '系统监控目录');
+insert into sys_menu values(3,  '系统工具', 0, '6',  'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', current_timestamp, '', null, '系统工具目录');
+insert into sys_menu values(4,  'AI 管理', 0, '1',  'ai',               null, '', '', 1, 0, 'M', '0', '0', '', 'bug',      'admin', current_timestamp, '', null, 'AI 管理目录');
+-- 二级菜单
+insert into sys_menu values(100,  '用户管理', 1,   '1', 'user',                'system/user/index',                 '', '', 1, 0, 'C', '0', '0', 'system:user:list',                 'user',          'admin', current_timestamp, '', null, '用户管理菜单');
+insert into sys_menu values(101,  '角色管理', 1,   '2', 'role',                'system/role/index',                 '', '', 1, 0, 'C', '0', '0', 'system:role:list',                 'peoples',       'admin', current_timestamp, '', null, '角色管理菜单');
+insert into sys_menu values(102,  '菜单管理', 1,   '3', 'menu',                'system/menu/index',                 '', '', 1, 0, 'C', '0', '0', 'system:menu:list',                 'tree-table',    'admin', current_timestamp, '', null, '菜单管理菜单');
+insert into sys_menu values(103,  '部门管理', 1,   '4', 'dept',                'system/dept/index',                 '', '', 1, 0, 'C', '0', '0', 'system:dept:list',                 'tree',          'admin', current_timestamp, '', null, '部门管理菜单');
+insert into sys_menu values(104,  '岗位管理', 1,   '5', 'post',                'system/post/index',                 '', '', 1, 0, 'C', '0', '0', 'system:post:list',                 'post',          'admin', current_timestamp, '', null, '岗位管理菜单');
+insert into sys_menu values(105,  '字典管理', 1,   '6', 'dict',                'system/dict/index',                 '', '', 1, 0, 'C', '0', '0', 'system:dict:list',                 'dict',          'admin', current_timestamp, '', null, '字典管理菜单');
+insert into sys_menu values(106,  '参数设置', 1,   '7', 'config',              'system/config/index',               '', '', 1, 0, 'C', '0', '0', 'system:config:list',               'edit',          'admin', current_timestamp, '', null, '参数设置菜单');
+insert into sys_menu values(107,  '通知公告', 1,   '8', 'notice',              'system/notice/index',               '', '', 1, 0, 'C', '0', '0', 'system:notice:list',               'message',       'admin', current_timestamp, '', null, '通知公告菜单');
+insert into sys_menu values(108,  '日志管理', 1,   '9', 'log',                 '',                                  '', '', 1, 0, 'M', '0', '0', '',                                 'log',           'admin', current_timestamp, '', null, '日志管理菜单');
+insert into sys_menu values(109,  '在线用户', 2,   '1', 'online',              'monitor/online/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',              'online',        'admin', current_timestamp, '', null, '在线用户菜单');
+insert into sys_menu values(110,  '定时任务', 2,   '2', 'job',                 'monitor/job/index',                 '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',                 'job',           'admin', current_timestamp, '', null, '定时任务菜单');
+insert into sys_menu values(111,  '数据监控', 2,   '3', 'druid',               'monitor/druid/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',               'druid',         'admin', current_timestamp, '', null, '数据监控菜单');
+insert into sys_menu values(112,  '服务监控', 2,   '4', 'server',              'monitor/server/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:server:list',              'server',        'admin', current_timestamp, '', null, '服务监控菜单');
+insert into sys_menu values(113,  '缓存监控', 2,   '5', 'cache',               'monitor/cache/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis',         'admin', current_timestamp, '', null, '缓存监控菜单');
+insert into sys_menu values(114,  '缓存列表', 2,   '6', 'cacheList',           'monitor/cache/list',                '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis-list',    'admin', current_timestamp, '', null, '缓存列表菜单');
+insert into sys_menu values(120,  '传输加密', 2,   '7', 'transportCrypto',     'monitor/transportCrypto/index',     '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list',     'chart',         'admin', current_timestamp, '', null, '传输加密监控菜单');
+insert into sys_menu values(115,  '表单构建', 3,   '1', 'build',               'tool/build/index',                  '', '', 1, 0, 'C', '0', '0', 'tool:build:list',                  'build',         'admin', current_timestamp, '', null, '表单构建菜单');
+insert into sys_menu values(116,  '代码生成', 3,   '2', 'gen',                 'tool/gen/index',                    '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                    'code',          'admin', current_timestamp, '', null, '代码生成菜单');
+insert into sys_menu values(117,  '系统接口', 3,   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', current_timestamp, '', null, '系统接口菜单');
+insert into sys_menu values(119,  'AI 对话', 4,   '1', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'wechat',        'admin', current_timestamp, '', null, 'AI 对话菜单');
+insert into sys_menu values(118,  '模型管理', 4,   '3', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'form',          'admin', current_timestamp, '', null, '模型管理菜单');
+insert into sys_menu values(121,  '工具管理', 4,   '4', 'tool',                'ai/tool/index',                     '', 'AiTool', 1, 0, 'C', '0', '0', 'ai:tool:list',                     'tool',          'admin', current_timestamp, '', null, '工具管理菜单');
+insert into sys_menu values(2413, '技能管理', 4,   '5', 'skill',               'ai/skill/index',                    '', 'AiSkill', 1, 0, 'C', '0', '0', 'ai:skill:list',                    'skill',   'admin', current_timestamp, '', null, 'AI技能管理(Agent Skills)菜单');
+-- 三级菜单
+insert into sys_menu values(500,  '操作日志', 108, '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', current_timestamp, '', null, '操作日志菜单');
+insert into sys_menu values(501,  '登录日志', 108, '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', current_timestamp, '', null, '登录日志菜单');
+-- 用户管理按钮
+insert into sys_menu values(1000, '用户查询', 100, '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1001, '用户新增', 100, '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:add',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1002, '用户修改', 100, '3',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1003, '用户删除', 100, '4',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:remove',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1004, '用户导出', 100, '5',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:export',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1005, '用户导入', 100, '6',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:import',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1006, '重置密码', 100, '7',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:resetPwd',       '#', 'admin', current_timestamp, '', null, '');
+-- 角色管理按钮
+insert into sys_menu values(1007, '角色查询', 101, '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1008, '角色新增', 101, '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:add',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1009, '角色修改', 101, '3',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1010, '角色删除', 101, '4',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:remove',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1011, '角色导出', 101, '5',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:export',         '#', 'admin', current_timestamp, '', null, '');
+-- 菜单管理按钮
+insert into sys_menu values(1012, '菜单查询', 102, '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1013, '菜单新增', 102, '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:add',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1014, '菜单修改', 102, '3',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1015, '菜单删除', 102, '4',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:remove',         '#', 'admin', current_timestamp, '', null, '');
+-- 部门管理按钮
+insert into sys_menu values(1016, '部门查询', 103, '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1017, '部门新增', 103, '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:add',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1018, '部门修改', 103, '3',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1019, '部门删除', 103, '4',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:remove',         '#', 'admin', current_timestamp, '', null, '');
+-- 岗位管理按钮
+insert into sys_menu values(1020, '岗位查询', 104, '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1021, '岗位新增', 104, '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:add',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1022, '岗位修改', 104, '3',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1023, '岗位删除', 104, '4',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:remove',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1024, '岗位导出', 104, '5',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:export',         '#', 'admin', current_timestamp, '', null, '');
+-- 字典管理按钮
+insert into sys_menu values(1025, '字典查询', 105, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1026, '字典新增', 105, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:add',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1027, '字典修改', 105, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1028, '字典删除', 105, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:remove',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1029, '字典导出', 105, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:export',         '#', 'admin', current_timestamp, '', null, '');
+-- 参数设置按钮
+insert into sys_menu values(1030, '参数查询', 106, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:query',        '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1031, '参数新增', 106, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:add',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1032, '参数修改', 106, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:edit',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1033, '参数删除', 106, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:remove',       '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1034, '参数导出', 106, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:export',       '#', 'admin', current_timestamp, '', null, '');
+-- 通知公告按钮
+insert into sys_menu values(1035, '公告查询', 107, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:query',        '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1036, '公告新增', 107, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:add',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1037, '公告修改', 107, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:edit',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1038, '公告删除', 107, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:remove',       '#', 'admin', current_timestamp, '', null, '');
+-- 操作日志按钮
+insert into sys_menu values(1039, '操作查询', 500, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:query',      '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1040, '操作删除', 500, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:remove',     '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1041, '日志导出', 500, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:export',     '#', 'admin', current_timestamp, '', null, '');
+-- 登录日志按钮
+insert into sys_menu values(1042, '登录查询', 501, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:query',   '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1043, '登录删除', 501, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:remove',  '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1044, '日志导出', 501, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:export',  '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1045, '账户解锁', 501, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:unlock',  '#', 'admin', current_timestamp, '', null, '');
+-- 在线用户按钮
+insert into sys_menu values(1046, '在线查询', 109, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:query',       '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1047, '批量强退', 109, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:batchLogout', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1048, '单条强退', 109, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:forceLogout', '#', 'admin', current_timestamp, '', null, '');
+-- 定时任务按钮
+insert into sys_menu values(1049, '任务查询', 110, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1050, '任务新增', 110, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:add',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1051, '任务修改', 110, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1052, '任务删除', 110, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:remove',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1053, '状态修改', 110, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:changeStatus',   '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1054, '任务导出', 110, '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:export',         '#', 'admin', current_timestamp, '', null, '');
+-- 代码生成按钮
+insert into sys_menu values(1055, '生成查询', 116, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:query',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1056, '生成修改', 116, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:edit',              '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1057, '生成删除', 116, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:remove',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1058, '导入代码', 116, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:import',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1059, '预览代码', 116, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:preview',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1060, '生成代码', 116, '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:code',              '#', 'admin', current_timestamp, '', null, '');
+-- 模型管理按钮
+insert into sys_menu values(1061, '模型查询', 118, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:query',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1062, '模型新增', 118, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:add',               '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1063, '模型修改', 118, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',              '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1064, '模型删除', 118, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:remove',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1065, '工具查询', 121, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:query',              '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1066, '工具新增', 121, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:add',                '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1067, '工具修改', 121, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:edit',               '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1068, '工具删除', 121, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:tool:remove',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2414, '技能查询', 2413, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:query',            '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2415, '技能新增', 2413, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:add',              '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2416, '技能修改', 2413, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:edit',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2417, '技能删除', 2413, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:skill:remove',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(122,  '应用管理', 4,   '2', 'app',                 'ai/app/index',                      '', 'AiApp', 1, 0, 'C', '0', '0', 'ai:app:list',                      'component',     'admin', current_timestamp, '', null, 'AI应用管理菜单');
+insert into sys_menu values(123,  '用量统计', 4,   '6', 'metrics',             'ai/metrics/index',                  '', 'AiMetrics', 1, 0, 'C', '0', '0', 'ai:metrics:list',              'chart',         'admin', current_timestamp, '', null, 'AI用量可观测菜单');
+insert into sys_menu values(1069, '应用查询', 122, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:query',               '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1070, '应用新增', 122, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:add',                 '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1071, '应用修改', 122, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:edit',                '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1072, '应用删除', 122, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:app:remove',              '#', 'admin', current_timestamp, '', null, '');
+
+-- ----------------------------
+-- 6、用户和角色关联表  用户N-1角色
+-- ----------------------------
+drop table if exists sys_user_role;
+create table sys_user_role (
+    user_id bigint not null,
+    role_id bigint not null,
+    primary key (user_id, role_id)
+);
+comment on column sys_user_role.user_id is '用户ID';
+comment on column sys_user_role.role_id is '角色ID';
+comment on table sys_user_role is '用户和角色关联表';
+
+-- ----------------------------
+-- 初始化-用户和角色关联表数据
+-- ----------------------------
+insert into sys_user_role values (1, 1);
+insert into sys_user_role values (2, 2);
+
+-- ----------------------------
+-- 7、角色和菜单关联表  角色1-N菜单
+-- ----------------------------
+drop table if exists sys_role_menu;
+create table sys_role_menu (
+    role_id bigint not null,
+    menu_id bigint not null,
+    primary key (role_id, menu_id)
+);
+comment on column sys_role_menu.role_id is '角色ID';
+comment on column sys_role_menu.menu_id is '菜单ID';
+comment on table sys_role_menu is '角色和菜单关联表';
+
+-- ----------------------------
+-- 初始化-角色和菜单关联表数据
+-- ----------------------------
+insert into sys_role_menu values (2, 4);
+insert into sys_role_menu values (2, 119);
+insert into sys_role_menu values (2, 122);
+insert into sys_role_menu values (2, 123);
+insert into sys_role_menu values (2, 1069);
+insert into sys_role_menu values (2, 1070);
+insert into sys_role_menu values (2, 1071);
+insert into sys_role_menu values (2, 1072);
+insert into sys_role_menu values (2, 2100);
+insert into sys_role_menu values (2, 2101);
+insert into sys_role_menu values (2, 2102);
+insert into sys_role_menu values (2, 2103);
+insert into sys_role_menu values (2, 2110);
+insert into sys_role_menu values (2, 2111);
+insert into sys_role_menu values (2, 2112);
+insert into sys_role_menu values (2, 2113);
+insert into sys_role_menu values (2, 2114);
+insert into sys_role_menu values (2, 2115);
+insert into sys_role_menu values (2, 2120);
+insert into sys_role_menu values (2, 2121);
+insert into sys_role_menu values (2, 2122);
+insert into sys_role_menu values (2, 2123);
+insert into sys_role_menu values (2, 2130);
+insert into sys_role_menu values (2, 2131);
+insert into sys_role_menu values (2, 2132);
+insert into sys_role_menu values (2, 2140);
+insert into sys_role_menu values (2, 2141);
+insert into sys_role_menu values (2, 2142);
+insert into sys_role_menu values (2, 2143);
+insert into sys_role_menu values (2, 2200);
+insert into sys_role_menu values (2, 2201);
+insert into sys_role_menu values (2, 2202);
+insert into sys_role_menu values (2, 2210);
+insert into sys_role_menu values (2, 2211);
+insert into sys_role_menu values (2, 2212);
+insert into sys_role_menu values (2, 2213);
+insert into sys_role_menu values (2, 2220);
+insert into sys_role_menu values (2, 2221);
+insert into sys_role_menu values (2, 2222);
+insert into sys_role_menu values (2, 2300);
+insert into sys_role_menu values (2, 2301);
+insert into sys_role_menu values (2, 2310);
+insert into sys_role_menu values (2, 2311);
+insert into sys_role_menu values (2, 2312);
+insert into sys_role_menu values (2, 2313);
+insert into sys_role_menu values (2, 2314);
+insert into sys_role_menu values (2, 2315);
+insert into sys_role_menu values (2, 2316);
+insert into sys_role_menu values (2, 2317);
+insert into sys_role_menu values (2, 2318);
+insert into sys_role_menu values (2, 2319);
+insert into sys_role_menu values (2, 2320);
+insert into sys_role_menu values (2, 2321);
+insert into sys_role_menu values (2, 2322);
+insert into sys_role_menu values (2, 2323);
+insert into sys_role_menu values (2, 2400);
+insert into sys_role_menu values (2, 2401);
+insert into sys_role_menu values (2, 2402);
+insert into sys_role_menu values (2, 2410);
+insert into sys_role_menu values (2, 2411);
+insert into sys_role_menu values (2, 2412);
+
+-- ----------------------------
+-- 8、角色和部门关联表  角色1-N部门
+-- ----------------------------
+drop table if exists sys_role_dept;
+create table sys_role_dept (
+    role_id bigint not null,
+    dept_id bigint not null,
+    primary key (role_id, dept_id)
+);
+comment on column sys_role_dept.role_id is '角色ID';
+comment on column sys_role_dept.dept_id is '部门ID';
+comment on table sys_role_dept is '角色和部门关联表';
+
+-- ----------------------------
+-- 初始化-角色和部门关联表数据
+-- ----------------------------
+insert into sys_role_dept values (2, 100);
+insert into sys_role_dept values (2, 101);
+insert into sys_role_dept values (2, 105);
+
+-- ----------------------------
+-- 9、用户与岗位关联表  用户1-N岗位
+-- ----------------------------
+drop table if exists sys_user_post;
+create table sys_user_post (
+    user_id bigint not null,
+    post_id bigint not null,
+    primary key (user_id, post_id)
+);
+comment on column sys_user_post.user_id is '用户ID';
+comment on column sys_user_post.post_id is '岗位ID';
+comment on table sys_user_post is '用户与岗位关联表';
+
+-- ----------------------------
+-- 初始化-用户与岗位关联表数据
+-- ----------------------------
+insert into sys_user_post values (1, 1);
+insert into sys_user_post values (2, 2);
+
+-- ----------------------------
+-- 10、操作日志记录
+-- ----------------------------
+drop table if exists sys_oper_log;
+create table sys_oper_log (
+    oper_id bigserial not null,
+    title varchar(50) default '',
+    business_type int4 default 0,
+    method varchar(100) default '',
+    request_method varchar(10) default '',
+    operator_type int4 default 0,
+    oper_name varchar(50) default '',
+    dept_name varchar(50) default '',
+    oper_url varchar(255) default '',
+    oper_ip varchar(128) default '',
+    oper_location varchar(255) default '',
+    oper_param varchar(2000) default '',
+    json_result varchar(2000) default '',
+    status int4 default 0,
+    error_msg varchar(2000) default '',
+    oper_time timestamp(0),
+    cost_time bigint default 0,
+    primary key (oper_id)
+);
+alter sequence sys_oper_log_oper_id_seq restart 100;
+create index idx_sys_oper_log_bt on sys_oper_log(business_type);  
+create index idx_sys_oper_log_s on sys_oper_log(status);  
+create index idx_sys_oper_log_ot on sys_oper_log(oper_time);
+comment on column sys_oper_log.oper_id is '日志主键';
+comment on column sys_oper_log.title is '模块标题';
+comment on column sys_oper_log.business_type is '业务类型（0其它 1新增 2修改 3删除）';
+comment on column sys_oper_log.method is '方法名称';
+comment on column sys_oper_log.request_method is '请求方式';
+comment on column sys_oper_log.operator_type is '操作类别（0其它 1后台用户 2手机端用户）';
+comment on column sys_oper_log.oper_name is '操作人员';
+comment on column sys_oper_log.dept_name is '部门名称';
+comment on column sys_oper_log.oper_url is '请求URL';
+comment on column sys_oper_log.oper_ip is '主机地址';
+comment on column sys_oper_log.oper_location is '操作地点';
+comment on column sys_oper_log.oper_param is '请求参数';
+comment on column sys_oper_log.json_result is '返回参数';
+comment on column sys_oper_log.status is '操作状态（0正常 1异常）';
+comment on column sys_oper_log.error_msg is '错误消息';
+comment on column sys_oper_log.oper_time is '操作时间';
+comment on column sys_oper_log.cost_time is '消耗时间';
+comment on table sys_oper_log is '操作日志记录';
+
+-- ----------------------------
+-- 11、字典类型表
+-- ----------------------------
+drop table if exists sys_dict_type;
+create table sys_dict_type (
+    dict_id bigserial not null,
+    dict_name varchar(100) default '',
+    dict_type varchar(100) unique default '',
+    status char(1) default '0',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default null,
+    primary key (dict_id)
+);
+alter sequence sys_dict_type_dict_id_seq restart 100;
+comment on column sys_dict_type.dict_id is '字典主键';
+comment on column sys_dict_type.dict_name is '字典名称';
+comment on column sys_dict_type.dict_type is '字典类型';
+comment on column sys_dict_type.status is '状态（0正常 1停用）';
+comment on column sys_dict_type.create_by is '创建者';
+comment on column sys_dict_type.create_time is '创建时间';
+comment on column sys_dict_type.update_by is '更新者';
+comment on column sys_dict_type.update_time is '更新时间';
+comment on column sys_dict_type.remark is '备注';
+comment on table sys_dict_type is '字典类型表';
+
+-- ----------------------------
+-- 初始化-字典类型表数据
+-- ----------------------------
+insert into sys_dict_type values(1,  '用户性别',     'sys_user_sex',        '0', 'admin', current_timestamp, '', null, '用户性别列表');
+insert into sys_dict_type values(2,  '菜单状态',     'sys_show_hide',       '0', 'admin', current_timestamp, '', null, '菜单状态列表');
+insert into sys_dict_type values(3,  '系统开关',     'sys_normal_disable',  '0', 'admin', current_timestamp, '', null, '系统开关列表');
+insert into sys_dict_type values(4,  '任务状态',     'sys_job_status',      '0', 'admin', current_timestamp, '', null, '任务状态列表');
+insert into sys_dict_type values(5,  '任务分组',     'sys_job_group',       '0', 'admin', current_timestamp, '', null, '任务分组列表');
+insert into sys_dict_type values(6,  '任务执行器',   'sys_job_executor',    '0', 'admin', current_timestamp, '', null, '任务执行器列表');
+insert into sys_dict_type values(7,  '系统是否',     'sys_yes_no',          '0', 'admin', current_timestamp, '', null, '系统是否列表');
+insert into sys_dict_type values(8,  '通知类型',     'sys_notice_type',     '0', 'admin', current_timestamp, '', null, '通知类型列表');
+insert into sys_dict_type values(9,  '通知状态', 	 'sys_notice_status',   '0', 'admin', current_timestamp, '', null, '通知状态列表');
+insert into sys_dict_type values(10,  '操作类型', 	 'sys_oper_type',       '0', 'admin', current_timestamp, '', null, '操作类型列表');
+insert into sys_dict_type values(11, '系统状态',     'sys_common_status',   '0', 'admin', current_timestamp, '', null, '登录状态列表');
+insert into sys_dict_type values(12, 'AI模型提供商', 'ai_provider_type',    '0', 'admin', current_timestamp, '', null, 'AI模型提供商列表');
+insert into sys_dict_type values(13, '任务运行队列', 'task_run_queue',      '0', 'admin', current_timestamp, '', null, '任务调度运行队列列表');
+
+-- ----------------------------
+-- 12、字典数据表
+-- ----------------------------
+drop table if exists sys_dict_data;
+create table sys_dict_data (
+    dict_code bigserial not null,
+    dict_sort int4 default 0,
+    dict_label varchar(100) default '',
+    dict_value varchar(100) default '',
+    dict_type varchar(100) default '',
+    css_class varchar(100) default null,
+    list_class varchar(100) default null,
+    is_default char(1) default 'N',
+    status char(1) default '0',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default null,
+    primary key (dict_code)
+);
+alter sequence sys_dict_data_dict_code_seq restart 100;
+comment on column sys_dict_data.dict_code is '字典编码';
+comment on column sys_dict_data.dict_sort is '字典排序';
+comment on column sys_dict_data.dict_label is '字典标签';
+comment on column sys_dict_data.dict_value is '字典键值';
+comment on column sys_dict_data.dict_type is '字典类型';
+comment on column sys_dict_data.css_class is '样式属性（其他样式扩展）';
+comment on column sys_dict_data.list_class is '表格回显样式';
+comment on column sys_dict_data.is_default is '是否默认（Y是 N否）';
+comment on column sys_dict_data.status is '状态（0正常 1停用）';
+comment on column sys_dict_data.create_by is '创建者';
+comment on column sys_dict_data.create_time is '创建时间';
+comment on column sys_dict_data.update_by is '更新者';
+comment on column sys_dict_data.update_time is '更新时间';
+comment on column sys_dict_data.remark is '备注';
+comment on table sys_dict_data is '字典数据表';
+
+-- ----------------------------
+-- 初始化-字典数据表数据
+-- ----------------------------
+insert into sys_dict_data values(1,  1,  '男',               '0',             'sys_user_sex',        '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '性别男');
+insert into sys_dict_data values(2,  2,  '女',               '1',             'sys_user_sex',        '',   '',        'N', '0', 'admin', current_timestamp, '', null, '性别女');
+insert into sys_dict_data values(3,  3,  '未知',             '2',             'sys_user_sex',        '',   '',        'N', '0', 'admin', current_timestamp, '', null, '性别未知');
+insert into sys_dict_data values(4,  1,  '显示',             '0',             'sys_show_hide',       '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '显示菜单');
+insert into sys_dict_data values(5,  2,  '隐藏',             '1',             'sys_show_hide',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '隐藏菜单');
+insert into sys_dict_data values(6,  1,  '正常',             '0',             'sys_normal_disable',  '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(7,  2,  '停用',             '1',             'sys_normal_disable',  '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
+insert into sys_dict_data values(8,  1,  '正常',             '0',              'sys_job_status',      '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(9,  2,  '暂停',             '1',              'sys_job_status',      '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
+insert into sys_dict_data values(10, 1,  '默认',             'default',        'sys_job_group',       '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '默认分组');
+insert into sys_dict_data values(11, 2,  '数据库',           'sqlalchemy',      'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, '数据库分组');
+insert into sys_dict_data values(12, 3,  'redis',           'redis',  			'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, 'reids分组');
+insert into sys_dict_data values(13, 1,  '默认',             'default',  		'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '线程池');
+insert into sys_dict_data values(14, 2,  '进程池',           'processpool',     'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '进程池');
+insert into sys_dict_data values(15, 1,  '是',               'Y',       		'sys_yes_no',          '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '系统默认是');
+insert into sys_dict_data values(16, 2,  '否',               'N',       		'sys_yes_no',          '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '系统默认否');
+insert into sys_dict_data values(17, 1,  '通知',             '1',       		'sys_notice_type',     '',   'warning', 'Y', '0', 'admin', current_timestamp, '', null, '通知');
+insert into sys_dict_data values(18, 2,  '公告',             '2',       		'sys_notice_type',     '',   'success', 'N', '0', 'admin', current_timestamp, '', null, '公告');
+insert into sys_dict_data values(19, 1,  '正常',             '0',       		'sys_notice_status',   '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(20, 2,  '关闭',             '1',       		'sys_notice_status',   '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '关闭状态');
+insert into sys_dict_data values(21, 99, '其他',             '0',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '其他操作');
+insert into sys_dict_data values(22, 1,  '新增',             '1',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '新增操作');
+insert into sys_dict_data values(23, 2,  '修改',             '2',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '修改操作');
+insert into sys_dict_data values(24, 3,  '删除',             '3',       		'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '删除操作');
+insert into sys_dict_data values(25, 4,  '授权',             '4',       		'sys_oper_type',       '',   'primary', 'N', '0', 'admin', current_timestamp, '', null, '授权操作');
+insert into sys_dict_data values(26, 5,  '导出',             '5',       		'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '导出操作');
+insert into sys_dict_data values(27, 6,  '导入',             '6',       		'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '导入操作');
+insert into sys_dict_data values(28, 7,  '强退',             '7',       		'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '强退操作');
+insert into sys_dict_data values(29, 8,  '生成代码',          '8',       		 'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '生成操作');
+insert into sys_dict_data values(30, 9,  '清空数据',          '9',       		 'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '清空操作');
+insert into sys_dict_data values(31, 1,  '成功',             '0',       		'sys_common_status',   '',   'primary', 'N', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(32, 2,  '失败',             '1',       		'sys_common_status',   '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
+insert into sys_dict_data values(33, 1,  'AIMLAPI',         'AIMLAPI',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'AIMLAPI');
+insert into sys_dict_data values(34, 2,  'Anthropic',       'Anthropic',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Anthropic');
+insert into sys_dict_data values(35, 3,  'Cerebras',        'Cerebras',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Cerebras');
+insert into sys_dict_data values(36, 4,  'CerebrasOpenAI',  'CerebrasOpenAI',   'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'CerebrasOpenAI');
+insert into sys_dict_data values(37, 5,  'Cohere',          'Cohere',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Cohere');
+insert into sys_dict_data values(38, 6,  'CometAPI',        'CometAPI',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'CometAPI');
+insert into sys_dict_data values(39, 7,  'DashScope',       'DashScope',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DashScope');
+insert into sys_dict_data values(40, 8,  'DeepInfra',       'DeepInfra',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DeepInfra');
+insert into sys_dict_data values(41, 9,  'DeepSeek',        'DeepSeek',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DeepSeek');
+insert into sys_dict_data values(42, 10,  'Fireworks',       'Fireworks',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Fireworks');
+insert into sys_dict_data values(43, 11,  'Google',          'Google',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Google');
+insert into sys_dict_data values(44, 12,  'Groq',            'Groq',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Groq');
+insert into sys_dict_data values(45, 13,  'HuggingFace',     'HuggingFace',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'HuggingFace');
+insert into sys_dict_data values(46, 14,  'LangDB',          'LangDB',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LangDB');
+insert into sys_dict_data values(47, 15,  'LiteLLM',         'LiteLLM',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LiteLLM');
+insert into sys_dict_data values(48, 16,  'LiteLLMOpenAI',   'LiteLLMOpenAI',    'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LiteLLMOpenAI');
+insert into sys_dict_data values(49, 17,  'LlamaCpp',        'LlamaCpp',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LlamaCpp');
+insert into sys_dict_data values(50, 18,  'LMStudio',        'LMStudio',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LMStudio');
+insert into sys_dict_data values(51, 19,  'Meta',            'Meta',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Meta');
+insert into sys_dict_data values(52, 20,  'Mistral',         'Mistral',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Mistral');
+insert into sys_dict_data values(53, 21,  'N1N',             'N1N',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'N1N');
+insert into sys_dict_data values(54, 22,  'Nebius',          'Nebius',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nebius');
+insert into sys_dict_data values(55, 23,  'Nexus',           'Nexus',            'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nexus');
+insert into sys_dict_data values(56, 24,  'Nvidia',          'Nvidia',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nvidia');
+insert into sys_dict_data values(57, 25,  'Ollama',          'Ollama',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Ollama');
+insert into sys_dict_data values(58, 26,  'OpenAI',          'OpenAI',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenAI');
+insert into sys_dict_data values(59, 27,  'OpenAIResponses', 'OpenAIResponses',  'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenAIResponses');
+insert into sys_dict_data values(60, 28,  'OpenRouter',      'OpenRouter',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenRouter');
+insert into sys_dict_data values(61, 29,  'Perplexity',      'Perplexity',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Perplexity');
+insert into sys_dict_data values(62, 30,  'Portkey',         'Portkey',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Portkey');
+insert into sys_dict_data values(63, 31,  'Requesty',        'Requesty',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Requesty');
+insert into sys_dict_data values(64, 32,  'Sambanova',       'Sambanova',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Sambanova');
+insert into sys_dict_data values(65, 33,  'SiliconFlow',     'SiliconFlow',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'SiliconFlow');
+insert into sys_dict_data values(66, 34,  'Together',        'Together',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Together');
+insert into sys_dict_data values(67, 35,  'Vercel',          'Vercel',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Vercel');
+insert into sys_dict_data values(68, 36,  'VLLM',            'VLLM',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'VLLM');
+insert into sys_dict_data values(69, 37,  'xAI',             'xAI',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'xAI');
+insert into sys_dict_data values(70, 1,   'default',         'default',          'task_run_queue',      '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '默认队列');
+
+-- ----------------------------
+-- 13、参数配置表
+-- ----------------------------
+drop table if exists sys_config;
+create table sys_config (
+    config_id serial not null,
+    config_name varchar(100) default '',
+    config_key varchar(100) default '',
+    config_value varchar(500) default '',
+    config_type char(1) default 'N',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default null,
+    primary key (config_id)
+);
+alter sequence sys_config_config_id_seq restart 100;
+comment on column sys_config.config_id is '参数主键';
+comment on column sys_config.config_name is '参数名称';
+comment on column sys_config.config_key is '参数键名';
+comment on column sys_config.config_value is '参数键值';
+comment on column sys_config.config_type is '系统内置（Y是 N否）';
+comment on column sys_config.create_by is '创建者';
+comment on column sys_config.create_time is '创建时间';
+comment on column sys_config.update_by is '更新者';
+comment on column sys_config.update_time is '更新时间';
+comment on column sys_config.remark is '备注';
+comment on table sys_config is '参数配置表';
+
+-- ----------------------------
+-- 初始化-参数配置表数据
+-- ----------------------------
+insert into sys_config values(1, '主框架页-默认皮肤样式名称',     'sys.index.skinName',            'skin-blue',     'Y', 'admin', current_timestamp, '', null, '蓝色 skin-blue、绿色 skin-green、紫色 skin-purple、红色 skin-red、黄色 skin-yellow' );
+insert into sys_config values(2, '用户管理-账号初始密码',         'sys.user.initPassword',         '123456',        'Y', 'admin', current_timestamp, '', null, '初始化密码 123456' );
+insert into sys_config values(3, '主框架页-侧边栏主题',           'sys.index.sideTheme',           'theme-dark',    'Y', 'admin', current_timestamp, '', null, '深色主题theme-dark，浅色主题theme-light' );
+insert into sys_config values(4, '账号自助-验证码开关',           'sys.account.captchaEnabled',    'true',          'Y', 'admin', current_timestamp, '', null, '是否开启验证码功能（true开启，false关闭）');
+insert into sys_config values(5, '账号自助-是否开启用户注册功能', 'sys.account.registerUser',      'false',         'Y', 'admin', current_timestamp, '', null, '是否开启注册用户功能（true开启，false关闭）');
+insert into sys_config values(6, '用户登录-黑名单列表',           'sys.login.blackIPList',         '',              'Y', 'admin', current_timestamp, '', null, '设置登录IP黑名单限制，多个匹配项以;分隔，支持匹配（*通配、网段）');
+insert into sys_config values(7, '用户管理-初始密码修改策略',     'sys.account.initPasswordModify',  '1',             'Y', 'admin', current_timestamp, '', null, '0：初始密码修改策略关闭，没有任何提示，1：提醒用户，如果未修改初始密码，则在登录时就会提醒修改密码对话框');
+insert into sys_config values(8, '用户管理-账号密码更新周期',     'sys.account.passwordValidateDays', '0',             'Y', 'admin', current_timestamp, '', null, '密码更新周期（填写数字，数据初始化值为0不限制，若修改必须为大于0小于365的正整数），如果超过这个周期登录系统时，则在登录时就会提醒修改密码对话框');
+
+-- ----------------------------
+-- 14、系统访问记录
+-- ----------------------------
+drop table if exists sys_logininfor;
+create table sys_logininfor (
+    info_id bigserial not null,
+    user_name varchar(50) default '',
+    ipaddr varchar(128) default '',
+    login_location varchar(255) default '',
+    browser varchar(50) default '',
+    os varchar(50) default '',
+    status char(1) default '0',
+    msg varchar(255) default '',
+    login_time timestamp(0),
+    primary key (info_id)
+);
+alter sequence sys_logininfor_info_id_seq restart 100;
+create index idx_sys_logininfor_s on sys_logininfor(status);  
+create index idx_sys_logininfor_lt on sys_logininfor(login_time);
+comment on column sys_logininfor.info_id is '访问ID';
+comment on column sys_logininfor.user_name is '用户账号';
+comment on column sys_logininfor.ipaddr is '登录IP地址';
+comment on column sys_logininfor.login_location is '登录地点';
+comment on column sys_logininfor.browser is '浏览器类型';
+comment on column sys_logininfor.os is '操作系统';
+comment on column sys_logininfor.status is '登录状态（0成功 1失败）';
+comment on column sys_logininfor.msg is '提示消息';
+comment on column sys_logininfor.login_time is '访问时间';
+comment on table sys_logininfor is '系统访问记录';
+
+-- ----------------------------
+-- 15、定时任务调度表
+-- ----------------------------
+drop table if exists sys_job;
+create table sys_job (
+    job_id bigserial not null,
+    job_name varchar(64) default '',
+    job_group varchar(64) default 'default',
+    job_executor varchar(64) default 'default',
+    invoke_target varchar(500) not null,
+    job_args varchar(255) default '',
+    job_kwargs varchar(255) default '',
+    cron_expression varchar(255) default '',
+    misfire_policy varchar(20) default '3',
+    concurrent char(1) default '1',
+    status char(1) default '0',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default '',
+    primary key (job_id, job_name, job_group)
+);
+alter sequence sys_job_job_id_seq restart 100;
+comment on column sys_job.job_id is '任务ID';
+comment on column sys_job.job_name is '任务名称';
+comment on column sys_job.job_group is '任务组名';
+comment on column sys_job.job_executor is '任务执行器';
+comment on column sys_job.invoke_target is '调用目标字符串';
+comment on column sys_job.job_args is '位置参数';
+comment on column sys_job.job_kwargs is '关键字参数';
+comment on column sys_job.cron_expression is 'cron执行表达式';
+comment on column sys_job.misfire_policy is '计划执行错误策略（1立即执行 2执行一次 3放弃执行）';
+comment on column sys_job.concurrent is '是否并发执行（0允许 1禁止）';
+comment on column sys_job.status is '状态（0正常 1暂停）';
+comment on column sys_job.create_by is '创建者';
+comment on column sys_job.create_time is '创建时间';
+comment on column sys_job.update_by is '更新者';
+comment on column sys_job.update_time is '更新时间';
+comment on column sys_job.remark is '备注信息';
+comment on table sys_job is '定时任务调度表';
+
+-- ----------------------------
+-- 初始化-定时任务调度表数据
+-- ----------------------------
+insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', null,   null, '0/10 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
+insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', null, '0/15 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
+insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{test: 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
+
+-- ----------------------------
+-- 16、定时任务调度日志表
+-- ----------------------------
+drop table if exists sys_job_log;
+create table sys_job_log (
+    job_log_id bigserial not null,
+    job_name varchar(64) not null,
+    job_group varchar(64) not null,
+    job_executor varchar(64) not null,
+    invoke_target varchar(500) not null,
+    job_args varchar(255) default '',
+    job_kwargs varchar(255) default '',
+    job_trigger varchar(255) default '',
+    job_message varchar(500),
+    status char(1) default '0',
+    exception_info varchar(2000) default '',
+    create_time timestamp(0),
+    primary key (job_log_id)
+);
+comment on column sys_job_log.job_log_id is '任务日志ID';
+comment on column sys_job_log.job_name is '任务名称';
+comment on column sys_job_log.job_group is '任务组名';
+comment on column sys_job_log.job_executor is '任务执行器';
+comment on column sys_job_log.invoke_target is '调用目标字符串';
+comment on column sys_job_log.job_args is '位置参数';
+comment on column sys_job_log.job_kwargs is '关键字参数';
+comment on column sys_job_log.job_trigger is '任务触发器';
+comment on column sys_job_log.job_message is '日志信息';
+comment on column sys_job_log.status is '执行状态（0正常 1失败）';
+comment on column sys_job_log.exception_info is '异常信息';
+comment on column sys_job_log.create_time is '创建时间';
+comment on table sys_job_log is '定时任务调度日志表';
+
+-- ----------------------------
+-- 17、通知公告表
+-- ----------------------------
+drop table if exists sys_notice;
+create table sys_notice (
+    notice_id serial not null,
+    notice_title varchar(50) not null,
+    notice_type char(1) not null,
+    notice_content bytea default null,
+    status char(1) default '0',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(255) default null,
+    primary key (notice_id)
+);
+alter sequence sys_notice_notice_id_seq restart 10;
+comment on column sys_notice.notice_id is '公告ID';
+comment on column sys_notice.notice_title is '公告标题';
+comment on column sys_notice.notice_type is '公告类型（1通知 2公告）';
+comment on column sys_notice.notice_content is '公告内容';
+comment on column sys_notice.status is '公告状态（0正常 1关闭）';
+comment on column sys_notice.create_by is '创建者';
+comment on column sys_notice.create_time is '创建时间';
+comment on column sys_notice.update_by is '更新者';
+comment on column sys_notice.update_time is '更新时间';
+comment on column sys_notice.remark is '备注';
+comment on table sys_notice is '通知公告表';
+
+-- ----------------------------
+-- 初始化-公告信息表数据
+-- ----------------------------
+insert into sys_notice values(1, '温馨提醒：2018-07-01 vfadmin新版本发布啦', '2', '新版本内容', '0', 'admin', current_timestamp, '', null, '管理员');
+insert into sys_notice values(2, '维护通知：2018-07-01 vfadmin系统凌晨维护', '1', '维护内容',   '0', 'admin', current_timestamp, '', null, '管理员');
+
+-- ----------------------------
+-- 18、代码生成业务表
+-- ----------------------------
+drop table if exists gen_table;
+create table gen_table (
+    table_id bigserial not null,
+    table_name varchar(200) default '',
+    table_comment varchar(500) default '',
+    sub_table_name varchar(64) default null,
+    sub_table_fk_name varchar(64) default null,
+    class_name varchar(100) default '',
+    tpl_category varchar(200) default 'crud',
+    tpl_web_type varchar(30)  default '',
+    package_name varchar(100),
+    module_name varchar(30),
+    business_name varchar(30),
+    function_name varchar(50),
+    function_author varchar(50),
+    gen_type char(1) default '0',
+    gen_path varchar(200) default '/',
+    options varchar(1000),
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default null,
+    primary key (table_id)
+);
+comment on column gen_table.table_id is '编号';
+comment on column gen_table.table_name is '表名称';
+comment on column gen_table.table_comment is '表描述';
+comment on column gen_table.sub_table_name is '关联子表的表名';
+comment on column gen_table.sub_table_fk_name is '子表关联的外键名';
+comment on column gen_table.class_name is '实体类名称';
+comment on column gen_table.tpl_category is '使用的模板（crud单表操作 tree树表操作）';
+comment on column gen_table.tpl_web_type is '前端模板类型（element-ui模版 element-plus模版）';
+comment on column gen_table.package_name is '生成包路径';
+comment on column gen_table.module_name is '生成模块名';
+comment on column gen_table.business_name is '生成业务名';
+comment on column gen_table.function_name is '生成功能名';
+comment on column gen_table.function_author is '生成功能作者';
+comment on column gen_table.gen_type is '生成代码方式（0zip压缩包 1自定义路径）';
+comment on column gen_table.gen_path is '生成路径（不填默认项目路径）';
+comment on column gen_table.options is '其它生成选项';
+comment on column gen_table.create_by is '创建者';
+comment on column gen_table.create_time is '创建时间';
+comment on column gen_table.update_by is '更新者';
+comment on column gen_table.update_time is '更新时间';
+comment on column gen_table.remark is '备注';
+comment on table gen_table is '代码生成业务表';
+
+-- ----------------------------
+-- 19、代码生成业务表字段
+-- ----------------------------
+drop table if exists gen_table_column;
+create table gen_table_column (
+    column_id bigserial not null,
+    table_id bigint,
+    column_name varchar(200),
+    column_comment varchar(500),
+    column_type varchar(100),
+    python_type varchar(500),
+    python_field varchar(200),
+    is_pk char(1),
+    is_increment char(1),
+    is_required char(1),
+    is_unique char(1),
+    is_insert char(1),
+    is_edit char(1),
+    is_list char(1),
+    is_query char(1),
+    query_type varchar(200) default 'EQ',
+    html_type varchar(200),
+    dict_type varchar(200) default '',
+    sort int4,
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    primary key (column_id)
+);
+comment on column gen_table_column.column_id is '编号';
+comment on column gen_table_column.table_id is '归属表编号';
+comment on column gen_table_column.column_name is '列名称';
+comment on column gen_table_column.column_comment is '列描述';
+comment on column gen_table_column.column_type is '列类型';
+comment on column gen_table_column.python_type is 'PYTHON类型';
+comment on column gen_table_column.python_field is 'PYTHON字段名';
+comment on column gen_table_column.is_pk is '是否主键（1是）';
+comment on column gen_table_column.is_increment is '是否自增（1是）';
+comment on column gen_table_column.is_required is '是否必填（1是）';
+comment on column gen_table_column.is_unique is '是否唯一（1是）';
+comment on column gen_table_column.is_insert is '是否为插入字段（1是）';
+comment on column gen_table_column.is_edit is '是否编辑字段（1是）';
+comment on column gen_table_column.is_list is '是否列表字段（1是）';
+comment on column gen_table_column.is_query is '是否查询字段（1是）';
+comment on column gen_table_column.query_type is '查询方式（等于、不等于、大于、小于、范围）';
+comment on column gen_table_column.html_type is '显示类型（文本框、文本域、下拉框、复选框、单选框、日期控件）';
+comment on column gen_table_column.dict_type is '字典类型';
+comment on column gen_table_column.sort is '排序';
+comment on column gen_table_column.create_by is '创建者';
+comment on column gen_table_column.create_time is '创建时间';
+comment on column gen_table_column.update_by is '更新者';
+comment on column gen_table_column.update_time is '更新时间';
+comment on table gen_table_column is '代码生成业务表字段';
+
+-- ----------------------------
+-- 20、AI模型表
+-- ----------------------------
+drop table if exists ai_models;
+create table ai_models (
+  model_id          bigserial       not null,
+  model_code        varchar(100)    not null,
+  model_name        varchar(100)    default null,
+  provider          varchar(50)     not null,
+  model_sort        int4            not null,
+  api_key           varchar(255)    default null,
+  base_url          varchar(255)    default null,
+  model_type        varchar(50)     default null,
+  max_tokens        integer         default null,
+  temperature       float           default null,
+  support_reasoning char(1)         default 'N',
+  support_images    char(1)         default 'N',
+  status            char(1)         default '0',
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  primary key (model_id)
+);
+comment on table ai_models is 'AI模型表';
+comment on column ai_models.model_id is '模型主键';
+comment on column ai_models.model_code is '模型编码';
+comment on column ai_models.model_name is '模型名称';
+comment on column ai_models.provider is '提供商';
+comment on column ai_models.model_sort is '显示顺序';
+comment on column ai_models.api_key is 'API Key';
+comment on column ai_models.base_url is 'Base URL';
+comment on column ai_models.model_type is '模型类型';
+comment on column ai_models.max_tokens is '最大输出token';
+comment on column ai_models.temperature is '默认温度';
+comment on column ai_models.support_reasoning is '是否支持推理';
+comment on column ai_models.support_images is '是否支持图片';
+comment on column ai_models.status is '模型状态';
+comment on column ai_models.user_id is '用户ID';
+comment on column ai_models.dept_id is '部门ID';
+comment on column ai_models.create_by is '创建者';
+comment on column ai_models.create_time is '创建时间';
+comment on column ai_models.update_by is '更新者';
+comment on column ai_models.update_time is '更新时间';
+comment on column ai_models.remark is '备注';
+
+-- ----------------------------
+-- AI工具表(MCP 外部工具 + 内置工具)
+-- ----------------------------
+drop table if exists ai_tool;
+create table ai_tool (
+  tool_id           bigserial       not null,
+  name              varchar(100)    not null,
+  code              varchar(100)    not null,
+  tool_type         varchar(50)     not null default 'mcp',
+  description       text            default null,
+  args              text            default null,
+  status            char(1)         default '0',
+  built_in          char(1)         default '0',
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  tenant_id         bigint,
+  primary key (tool_id)
+);
+create index ix_ai_tool_tenant_id on ai_tool (tenant_id);
+comment on table ai_tool is 'AI工具表';
+comment on column ai_tool.tool_id is '工具主键';
+comment on column ai_tool.name is '工具名称';
+comment on column ai_tool.code is '工具代码(唯一标识)';
+comment on column ai_tool.tool_type is '工具类型: mcp/builtin';
+comment on column ai_tool.description is '工具描述';
+comment on column ai_tool.args is '工具配置JSON';
+comment on column ai_tool.status is '状态: 0启用 1停用';
+comment on column ai_tool.built_in is '是否内置: 1是(不可删/改code) 0否';
+comment on column ai_tool.tenant_id is '租户ID(顶级部门)';
+
+insert into ai_tool (name,code,tool_type,description,args,status,built_in,create_by,create_time,update_by,update_time) values
+('数据探索','data_explore','builtin','发现数据源、查表结构、检索数据源知识库(含收藏的取数解法)','{}','0','1','admin',now(),'admin',now()),
+('沙箱执行','sandbox_code','builtin','在隔离沙箱里跑 Python 计算 / 对数据源取数,产出结论/表格/图表','{}','0','1','admin',now(),'admin',now()),
+('任务提议','task_propose','builtin','向用户弹出预填的任务确认表单(数据集成/Python/Shell)','{}','0','1','admin',now(),'admin',now()),
+('百度搜索','baidu_search','builtin','用百度检索网页(免鉴权、国内可达);为对话/应用补充实时联网信息','{}','0','1','admin',now(),'admin',now());
+
+-- ----------------------------
+-- AI技能表(Agent Skills:能力包 = 名称 + 描述 + SKILL.md 正文 + 可选打包资源;渐进式披露)
+-- ----------------------------
+drop table if exists ai_skill;
+create table ai_skill (
+  skill_id          bigserial       not null,
+  name              varchar(100)    not null,
+  code              varchar(100)    not null,
+  description       text            default null,
+  content           text            default null,
+  resources         text            default null,
+  ref_skills        varchar(500)    default null,
+  skill_type        varchar(20)     default 'process',
+  datasource_codes  varchar(500)    default null,
+  status            char(1)         default '0',
+  built_in          char(1)         default '0',
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  tenant_id         bigint,
+  primary key (skill_id)
+);
+create index ix_ai_skill_tenant_id on ai_skill (tenant_id);
+comment on table ai_skill is 'AI技能表(Agent Skills 能力包)';
+comment on column ai_skill.skill_id is '技能主键';
+comment on column ai_skill.name is '技能名称';
+comment on column ai_skill.code is '技能代码(唯一标识,供 load_skill 引用)';
+comment on column ai_skill.description is '技能描述(常驻上下文,决定何时被选用)';
+comment on column ai_skill.content is '技能正文(SKILL.md,按需 load_skill 拉取)';
+comment on column ai_skill.resources is '附加文件JSON([{name,content}])';
+comment on column ai_skill.ref_skills is '引用的技能code(逗号分隔,软引用)';
+comment on column ai_skill.skill_type is '类型: process流程型(全局) knowledge知识型(按源浮现)';
+comment on column ai_skill.datasource_codes is '知识型绑定的数据源code(逗号分隔)';
+comment on column ai_skill.status is '状态: 0启用 1停用';
+comment on column ai_skill.built_in is '是否内置: 1是(不可删/改code) 0否';
+comment on column ai_skill.tenant_id is '租户ID(顶级部门)';
+
+-- 示例技能(非内置,可编辑/删除):股票代码规范化,演示「渐进式披露」
+insert into ai_skill (name,code,description,content,status,built_in,create_by,create_time,update_by,tenant_id) values
+('股票代码规范化','stock_code_norm',
+ '把股票中文名或6位代码规范成带交易所前缀(sh/sz/bj)的标准代码,查行情/日线前统一使用。当用户提到具体股票并要查询时适用。',
+ '当用户提到某只股票(中文名或6位代码)、需要查行情/日线时,先按下述规则把它规范成带交易所前缀的标准代码,再去查询。
+
+## 前缀规则(A股)
+- 6 或 9 开头 → 上交所,前缀 sh(如 600519 → sh600519;科创板 688 开头也是 sh)
+- 0 或 3 开头 → 深交所,前缀 sz(如 000001 → sz000001;创业板 300 开头也是 sz)
+- 4 或 8 开头 → 北交所,前缀 bj(新浪日线接口不支持北交所)
+
+## 步骤
+1. 用户给中文名时,先用数据探索/快照(fin_stock_spot 按 name 匹配)拿到6位代码;
+2. 按上面规则加前缀得到标准代码;
+3. 用标准代码去查询(stock_zh_a_daily 的 symbol、或 ES 索引 code 字段)。
+
+## 示例
+- 贵州茅台 → 600519 → sh600519
+- 宁德时代 → 300750 → sz300750
+- 用户直接给 000651 → sz000651',
+ '0','0','admin',now(),'admin',100);
+
+-- 内置流程型技能(built_in=1):承接从数据 agent 常驻指令搬出的条件性专题,模型按需 load_skill 拉取
+insert into ai_skill (name,code,description,content,skill_type,status,built_in,create_by,create_time,update_by,tenant_id) values
+('出图构建','chart_building',
+ '出图/画图操作手册:plot_chart(简单图) vs 代码(复杂图)的分流规则、native 直接返回最终值的写法。要画任何图前先加载。',
+'# 出图工具怎么选(按聚合复杂度分流)
+
+## 简单图:优先 plot_chart(datasource_code, native=单条只读查询, chart_type, x, ys, ...)
+适用「单表 + 单一维度 + 单一/无聚合」的高频图——Top-N 柱/条、占比饼、时间趋势线、K 线。
+关键:让 native 直接返回要画的最终值(SQL 写 GROUP BY / ORDER BY / LIMIT,度量 agg 填 none),
+不要依赖前端二次聚合(取数有行数上限,会把总和/极值算错)。这类图可「存为看板」,能用就用它。
+
+## 复杂图:改用 run_datasource_query 写代码
+多重/多层聚合、跨多次查询、pandas 关联/透视/多步计算,或 ES 只有指标无分桶的单值 KPI
+→ 沙箱里用代码算准、再用 pyecharts 出图。
+
+## 拿不准
+一条查询能算清要画的值 → plot_chart;要多步/多聚合 → 代码。',
+ 'process','0','1','admin',now(),'admin',100),
+
+('ES查询注意','es_query',
+ 'Elasticsearch 数据源查询注意事项:.keyword 子字段、size 写足、Top-N 排序切片。目标数据源是 ES 时先加载。',
+'# Elasticsearch 数据源查询注意事项
+
+1. 文本字段做 terms 聚合/精确匹配/排序,务必用带 .keyword 的子字段(如 industry.keyword);别对 text 主字段聚合。
+2. 取时间序列/明细务必显式写足 size(如 size:300),ES 默认只回 10 条。
+3. Top-N 在沙箱代码里排序切片(sorted(...)[:N])后再产出,别靠结果摘要目测。',
+ 'process','0','1','admin',now(),'admin',100),
+
+('任务与定时','task_scheduling',
+ '定时任务的新建/修改/复制流程 + 7段 Quartz cron 规则(北京时区)。用户要建/改/复制任务(含设定时)前先加载。',
+'# 任务管理与定时 cron
+
+## 提议任务(只弹表单交用户确认,不擅自落库)
+- 改已有任务(调频率、启用/停用、改名)→ find_tasks → propose_task_update。
+- 原样复制 → find_tasks → propose_task_copy。
+- 照某任务改动后新建 → find_tasks → get_task_detail → 对应 propose_*(代码取数用 propose_code_extract_task)。
+- 全新任务:直接 propose_data_integration_task / propose_code_extract_task / propose_python_task / propose_shell_task。
+
+## 定时 cron:7 段 Quartz(秒 分 时 日 月 周 年),北京时区 Asia/Shanghai,与前端 cron 组件一致
+1. 步进用 `0/N`,不要用 `*/N`(会解析成 NaN)。
+2. 星期只用数字,周日=1..周六=7(周一到周五=2-6),别用 MON-FRI、别用 0。
+3. 年固定写 `*`。4. 日与星期二选一,定了星期则日写 ?。
+例:每20分钟 `0 0/20 * * * ? *`;每天8点 `0 0 8 * * ? *`;交易时段(周一到周五9-15点)每5分钟 `0 0/5 9-15 ? * 2-6 *`。',
+ 'process','0','1','admin',now(),'admin',100);
+
+-- ----------------------------
+-- 指标表(语义层):权威口径度量,绑定数据模型;agent 命中即用 query_metric
+-- ----------------------------
+drop table if exists data_metric;
+create table data_metric (
+  metric_id         bigserial       not null,
+  name              varchar(100)    not null,
+  code              varchar(100)    not null,
+  synonyms          varchar(500)    default null,
+  caliber           text            default null,
+  model_id          varchar(64)     default null,
+  measure           text            default null,
+  dimensions        text            default null,
+  time_field        varchar(100)    default null,
+  default_grain     varchar(20)     default null,
+  default_filters   text            default null,
+  unit              varchar(50)     default null,
+  verified_examples text            default null,
+  status            char(1)         default '0',
+  review_state      varchar(20)     default 'ok',
+  built_in          char(1)         default '0',
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  tenant_id         bigint,
+  primary key (metric_id)
+);
+create index ix_data_metric_tenant_id on data_metric (tenant_id);
+comment on table data_metric is '指标表(语义层)';
+comment on column data_metric.code is '指标代码(唯一,供 query_metric 引用)';
+comment on column data_metric.caliber is '口径(权威定义)';
+comment on column data_metric.measure is '度量JSON {agg,field}';
+comment on column data_metric.review_state is 'ok / stale(血缘触发待复核)';
+
+
+-- ----------------------------
+-- AI应用表
+-- ----------------------------
+drop table if exists ai_app;
+create table ai_app (
+  app_id            bigserial       not null,
+  name              varchar(100)    not null,
+  icon              varchar(500)    default null,
+  description       varchar(500)    default null,
+  app_type          varchar(50)     default null,
+  status            char(1)         default '0',
+  config            text            default null,
+  user_id           bigint,
+  dept_id           bigint,
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  tenant_id         bigint,
+  primary key (app_id)
+);
+create index ix_ai_app_tenant_id on ai_app (tenant_id);
+comment on table ai_app is 'AI应用表';
+comment on column ai_app.config is '应用配置JSON(prompt/绑定工具知识库/参数等)';
+
+-- (应用对外 APIKey 复用通用 api_token 表:token_type='ai_app', ref_id=应用ID)
+
+-- ----------------------------
+-- 21、AI对话配置表
+-- ----------------------------
+drop table if exists ai_chat_config;
+create table ai_chat_config (
+  chat_config_id          bigserial      not null,
+  user_id                 bigint         not null unique,
+  temperature             float          default null,
+  add_history_to_context  char(1)        default '0',
+  num_history_runs        int4           default null,
+  system_prompt           text           default null,
+  metrics_default_visible char(1)        default '0',
+  vision_enabled          char(1)        default '1',
+  image_max_size_mb       int4           default null,
+  mcp_tool_ids            varchar(500)   default null,
+  agent_app_ids           varchar(500)   default null,
+  enable_memory           varchar(1)     default '1',
+  create_time             timestamp(0),
+  update_time             timestamp(0),
+  primary key (chat_config_id)
+);
+comment on table ai_chat_config is 'AI对话配置表';
+comment on column ai_chat_config.chat_config_id is '配置主键';
+comment on column ai_chat_config.user_id is '用户ID';
+comment on column ai_chat_config.temperature is '默认温度';
+comment on column ai_chat_config.add_history_to_context is '是否添加历史记录(0是, 1否)';
+comment on column ai_chat_config.num_history_runs is '历史记录条数';
+comment on column ai_chat_config.system_prompt is '系统提示词';
+comment on column ai_chat_config.metrics_default_visible is '默认显示指标(0是, 1否)';
+comment on column ai_chat_config.vision_enabled is '是否开启视觉(0是, 1否)';
+comment on column ai_chat_config.image_max_size_mb is '图片最大大小(MB)';
+comment on column ai_chat_config.mcp_tool_ids is '启用的MCP工具ID(逗号分隔)';
+comment on column ai_chat_config.agent_app_ids is '引用的应用agent ID(逗号分隔,多agent协作)';
+comment on column ai_chat_config.enable_memory is '是否开启长期记忆(0是, 1否)';
+comment on column ai_chat_config.create_time is '创建时间';
+comment on column ai_chat_config.update_time is '更新时间';
+
+-- AI 长期记忆表(agno user-memory;按 user_id 跨会话沉淀,schema 须与 agno 一致)
+drop table if exists ai_memories;
+create table ai_memories (
+  memory_id   varchar(128)   not null,
+  memory      json           not null,
+  input       text,
+  agent_id    varchar(128),
+  team_id     varchar(128),
+  user_id     varchar(128),
+  topics      json,
+  feedback    text,
+  created_at  bigint         not null,
+  updated_at  bigint,
+  primary key (memory_id)
+);
+create index ix_ai_memories_user_id on ai_memories (user_id);
+create index ix_ai_memories_created_at on ai_memories (created_at);
+create index ix_ai_memories_updated_at on ai_memories (updated_at);
+comment on table ai_memories is 'AI长期记忆表(agno)';
+
+CREATE OR REPLACE FUNCTION "find_in_set"(int8, varchar)
+    RETURNS "pg_catalog"."bool" AS $BODY$
+DECLARE
+    STR ALIAS FOR $1;
+    STRS ALIAS FOR $2;
+    POS INTEGER;
+    STATUS BOOLEAN;
+BEGIN
+    SELECT POSITION( ','||STR||',' IN ','||STRS||',') INTO POS;
+    IF POS > 0 THEN
+        STATUS = TRUE;
+    ELSE
+        STATUS = FALSE;
+    END IF;
+    RETURN STATUS;
+END;
+$BODY$
+    LANGUAGE plpgsql VOLATILE
+                     COST 100;
+
+create or replace view list_column as
+SELECT c.relname                                                                           AS table_name,
+       a.attname                                                                           AS column_name,
+       d.description                                                                       AS column_comment,
+       CASE
+           WHEN a.attnotnull AND con.conname IS NULL THEN '1'
+           ELSE '0'
+           END                                                                             AS is_required,
+       CASE
+           WHEN con.conname IS NOT NULL THEN '1'
+           ELSE '0'
+           END                                                                             AS is_pk,
+       a.attnum                                                                            AS sort,
+       CASE
+           WHEN "position"(pg_get_expr(ad.adbin, ad.adrelid), ((c.relname::text || '_'::text) || a.attname
+                           ::text) || '_seq'::text) > 0 THEN '1'
+           ELSE '0'
+           END                                                                             AS is_increment,
+       btrim(
+                   CASE
+                       WHEN t.typelem <> 0::oid AND t.typlen = '-1'::integer THEN 'ARRAY'::text
+            ELSE
+            CASE
+                WHEN t.typtype = 'd'::"char" THEN format_type(t.typbasetype, NULL::integer)
+                ELSE format_type(a.atttypid, NULL::integer)
+            END
+        END, '"'::text) AS column_type
+FROM pg_attribute a
+         JOIN (pg_class c
+    JOIN pg_namespace n ON c.relnamespace = n.oid) ON a.attrelid = c.oid
+         LEFT JOIN pg_description d ON d.objoid = c.oid AND a.attnum = d.objsubid
+         LEFT JOIN pg_constraint con ON con.conrelid = c.oid AND (a.attnum = ANY (con.conkey))
+         LEFT JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum
+         LEFT JOIN pg_type t ON a.atttypid = t.oid
+WHERE (c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"]))
+  AND a.attnum > 0
+  AND n.nspname = 'public'::name
+  AND not a.attisdropped
+  ORDER BY c.relname, a.attnum;
+
+create or replace view list_table as
+SELECT c.relname              AS table_name,
+       obj_description(c.oid) AS table_comment,
+       CURRENT_TIMESTAMP      AS create_time,
+       CURRENT_TIMESTAMP      AS update_time
+FROM pg_class c
+         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE (c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"]))
+  AND c.relname !~~ 'spatial_%'::text AND n.nspname = 'public'::name AND n.nspname <> ''::name;
+
+CREATE OR REPLACE FUNCTION substring_index(varchar, varchar, integer)
+RETURNS varchar AS $$
+DECLARE
+tokens varchar[];
+length integer ;
+indexnum integer;
+BEGIN
+tokens := pg_catalog.string_to_array($1, $2);
+length := pg_catalog.array_upper(tokens, 1);
+indexnum := length - ($3 * -1) + 1;
+IF $3 >= 0 THEN
+RETURN pg_catalog.array_to_string(tokens[1:$3], $2);
+ELSE
+RETURN pg_catalog.array_to_string(tokens[indexnum:length], $2);
+END IF;
+END;
+$$ IMMUTABLE STRICT LANGUAGE PLPGSQL;
+
+-- ----------------------------
+-- 任务调度模块（module_task_schedule）
+-- ----------------------------
+
+-- 任务模板表
+drop table if exists task_template;
+create table task_template (
+    id varchar(36) not null,
+    name varchar(200) default '',
+    code varchar(200) default '',
+    icon varchar(500) default '',
+    type smallint default 1,
+    runner_type smallint default 1,
+    runner_code text,
+    component varchar(500) default '',
+    params text,
+    built_in smallint default 0,
+    status smallint default 1,
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default '',
+    primary key (id),
+    constraint uk_task_template_code unique (code)
+);
+
+-- 任务表
+drop table if exists task;
+create table task (
+    id varchar(36) not null,
+    template_code varchar(200) default '',
+    task_type smallint default 1,
+    run_type smallint default 1,
+    name varchar(100) default '',
+    params text,
+    status smallint default 0,
+    built_in smallint default 0,
+    trigger_type smallint default 1,
+    crontab varchar(500) default '',
+    priority int default 1,
+    retry int default 0,
+    countdown int default 0,
+    run_queue varchar(200) default 'default',
+    running_id varchar(36) default null,
+    job_id int default null,
+    published_version_id varchar(36) default null,
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default '',
+    primary key (id)
+);
+
+-- 任务实例(执行记录)表
+drop table if exists task_instance;
+create table task_instance (
+    id varchar(36) not null,
+    parent_id varchar(36) default '',
+    task_id varchar(36) default '',
+    node_id varchar(36) default '',
+    name varchar(100) default '',
+    status varchar(50) default 'STARTED',
+    worker varchar(200) default '',
+    retry_num int default 0,
+    progress float default 0,
+    start_time timestamp(0),
+    end_time timestamp(0),
+    closed smallint default 0,
+    result text,
+    dag_version_id varchar(36) default null,
+    primary key (id)
+);
+create index idx_task_instance_task on task_instance (task_id);
+create index idx_task_instance_status on task_instance (status);
+
+-- DAG 图版本文档表
+drop table if exists dag_graph;
+create table dag_graph (
+    id varchar(36) not null,
+    dag_task_id varchar(36) default null,
+    version varchar(64) default 'draft',
+    status varchar(20) default 'draft',
+    graph text,
+    remark varchar(500) default '',
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    tenant_id bigint default null,
+    primary key (id)
+);
+create index ix_dag_graph_dag_task_id on dag_graph (dag_task_id);
+
+-- 任务执行明细日志表(仅 TASK_LOG_TYPE=db 时写入)
+drop table if exists task_log;
+create table task_log (
+    id bigserial not null,
+    task_uuid varchar(36) default '',
+    level varchar(20) default 'INFO',
+    content text,
+    create_time timestamp(0),
+    primary key (id)
+);
+create index idx_task_log_uuid on task_log (task_uuid);
+
+-- 内置任务模板
+insert into task_template values ('1', 'Python脚本任务', 'PythonTask', '', 1, 1, null, 'PythonTask', '', 1, 1, 'admin', current_timestamp, '', null, '内置组件: Python 任务(代码/文件模式)');
+insert into task_template values ('2', 'Shell脚本任务', 'ShellTask', '', 1, 1, null, 'ShellTask', '', 1, 1, 'admin', current_timestamp, '', null, '内置组件: Shell 任务(代码/文件模式)');
+insert into task_template values ('3', '动态代码任务', 'DynamicTask', '', 2, 2, 'def run(params, logger):
+    logger.info("动态任务参数: " + str(params))
+    return "执行成功"', '', '[{"field":"message","label":"消息内容","component":"text","required":false,"default":"hello dynamic"}]', 1, 1, 'admin', current_timestamp, '', null, '动态代码模板：run(params, logger) 在模板上维护，任务只填参数');
+insert into task_template values ('4', '数据集成任务', 'DataIntegrationTask', '', 1, 1, null, 'DataIntegrationTask', '', 1, 1, 'admin', current_timestamp, '', null, '内置组件: 数据集成 ETL(抽取-转换-装载),支持抽取预览调试');
+
+-- ----------------------------
+-- 任务调度模块菜单/权限
+-- ----------------------------
+insert into sys_menu values(2100, '任务调度', 0,    '2', 'task',     null,                  '', '', 1, 0, 'M', '0', '0', '',                       'job',  'admin', current_timestamp, '', null, '任务调度目录');
+insert into sys_menu values(2101, '普通任务调度', 2100, '1', 'info',     'task/info/index',     '', '', 1, 0, 'C', '0', '0', 'task:info:list',         'list', 'admin', current_timestamp, '', null, '任务管理菜单');
+insert into sys_menu values(2102, '任务模板', 2100, '3', 'template', 'task/template/index', '', '', 1, 0, 'C', '0', '0', 'task:template:list',     'form', 'admin', current_timestamp, '', null, '任务模板菜单');
+insert into sys_menu values(2103, '任务工作流', 2100, '2', 'dag',     'task/dag/index',      '', '', 1, 0, 'C', '0', '0', 'task:dag:list',          'share', 'admin', current_timestamp, '', null, 'DAG工作流菜单');
+insert into sys_menu values(2140, 'DAG查询', 2103, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:list',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2141, 'DAG编辑', 2103, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:edit',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2142, 'DAG发布', 2103, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:publish', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2143, 'DAG运行', 2103, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:dag:run',     '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2110, '任务查询', 2101, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:query',        '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2111, '任务新增', 2101, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:add',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2112, '任务修改', 2101, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:edit',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2113, '任务删除', 2101, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:remove',       '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2114, '状态修改', 2101, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:changeStatus', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2115, '手动执行', 2101, '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:info:run',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2120, '模板查询', 2102, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:query',  '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2121, '模板新增', 2102, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:add',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2122, '模板修改', 2102, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:edit',   '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2123, '模板删除', 2102, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:template:remove', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2130, '记录查询', 2101, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:query',  '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2131, '记录删除', 2101, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:remove', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2132, '终止任务', 2101, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:instance:stop',   '#', 'admin', current_timestamp, '', null, '');
+-- Worker 管理
+insert into sys_menu values(2104, 'Worker管理', 2100, '4', 'worker', 'task/worker/index', '', '', 1, 0, 'C', '0', '0', 'task:worker:list', 'server', 'admin', current_timestamp, '', null, 'Worker 管理菜单');
+insert into sys_menu values(2150, 'Worker查询', 2104, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:list',     '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2151, '队列管理',   2104, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:consumer', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2152, '并发伸缩',   2104, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'task:worker:scale',    '#', 'admin', current_timestamp, '', null, '');
+
+-- ----------------------------
+-- 告警中心模块（module_alert）
+-- ----------------------------
+
+-- 告警策略表
+drop table if exists alert_strategy;
+create table alert_strategy (
+    strategy_id bigserial not null,
+    strategy_name varchar(200) not null,
+    biz varchar(50) default 'scheduler',
+    trigger_conf text,
+    forward_conf text,
+    status smallint default 1,
+    create_by varchar(64) default '',
+    create_time timestamp(0),
+    update_by varchar(64) default '',
+    update_time timestamp(0),
+    remark varchar(500) default '',
+    primary key (strategy_id)
+);
+
+-- 告警记录表
+drop table if exists alert_record;
+create table alert_record (
+    alert_id bigserial not null,
+    strategy_id bigint,
+    title varchar(500),
+    content text,
+    level int default 0,
+    status smallint default 0,
+    biz varchar(50),
+    source varchar(200),
+    metric varchar(100),
+    tags text,
+    ext_params text,
+    recover_time timestamp(0),
+    create_time timestamp(0),
+    primary key (alert_id)
+);
+create index idx_alert_record_strategy on alert_record (strategy_id);
+create index idx_alert_record_status on alert_record (status);
+
+-- 内置示例告警策略
+insert into alert_strategy (strategy_id, strategy_name, biz, trigger_conf, forward_conf, status, create_by, create_time, remark)
+values (1, '默认任务失败告警', 'scheduler', '{"level":2}', '[{"type":"webhook","webhook_url":"http://ezdata-backend-dev:9099/dev-api/alert/test-sink"}]', 1, 'admin', current_timestamp, '任务重试耗尽失败时通过 webhook 通知');
+
+-- 任务表增加告警策略绑定字段
+alter table task add column alert_strategy_ids varchar(500) default '';
+
+-- ----------------------------
+-- 告警中心菜单/权限
+-- ----------------------------
+insert into sys_menu values(2200, '告警中心', 0,    '3', 'alert',    null,                   '', '', 1, 0, 'M', '0', '0', '',                     'message', 'admin', current_timestamp, '', null, '告警中心目录');
+insert into sys_menu values(2201, '告警策略', 2200, '1', 'strategy', 'alert/strategy/index', '', '', 1, 0, 'C', '0', '0', 'alert:strategy:list',  'tool',    'admin', current_timestamp, '', null, '告警策略菜单');
+insert into sys_menu values(2202, '告警记录', 2200, '2', 'record',   'alert/record/index',   '', '', 1, 0, 'C', '0', '0', 'alert:record:list',    'log',     'admin', current_timestamp, '', null, '告警记录菜单');
+insert into sys_menu values(2210, '策略查询', 2201, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:query',  '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2211, '策略新增', 2201, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:add',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2212, '策略修改', 2201, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:edit',   '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2213, '策略删除', 2201, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:strategy:remove', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2220, '记录查询', 2202, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:list',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2221, '记录处理', 2202, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:edit',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2222, '记录删除', 2202, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'alert:record:remove',  '#', 'admin', current_timestamp, '', null, '');
+
+-- 数据管理模块菜单/权限(module_data + module_apitoken)
+insert into sys_menu values(2300, '数据管理', 0,    '0', 'data',   null,               '', '', 1, 0, 'M', '0', '0', '',                  'database', 'admin', current_timestamp, '', null, '数据管理目录(置顶)');
+insert into sys_menu values(2301, '数据管理', 2300, '1', 'manage', 'dataManage/index', '', '', 1, 0, 'C', '0', '0', 'data:source:list',  'database', 'admin', current_timestamp, '', null, '数据管理菜单');
+insert into sys_menu values(2302, '数据看板', 2300, '2', 'dashboard-list', 'dataManage/dashboard/index', '', '', 1, 0, 'C', '0', '0', 'data:query',        'chart',    'admin', current_timestamp, '', null, '看板/大屏统一管理(单图/多图/大屏)');
+insert into sys_menu values(2310, '数据源查询', 2301, '1',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:list',   '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2311, '数据源新增', 2301, '2',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:add',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2312, '数据源修改', 2301, '3',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:edit',   '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2313, '数据源删除', 2301, '4',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:source:remove', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2314, '模型查询',   2301, '5',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:list',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2315, '模型新增',   2301, '6',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:add',     '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2316, '模型修改',   2301, '7',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:edit',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2317, '模型删除',   2301, '8',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:model:remove',  '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2318, '数据查询',   2301, '9',  '#', '', '', '', 1, 0, 'F', '0', '0', 'data:query',         '#', 'admin', current_timestamp, '', null, '原生/AI 取数');
+insert into sys_menu values(2319, '数据接口',   2301, '10', '#', '', '', '', 1, 0, 'F', '0', '0', 'data:api',           '#', 'admin', current_timestamp, '', null, '分页接口预览');
+insert into sys_menu values(2320, '数据集成',   2301, '11', '#', '', '', '', 1, 0, 'F', '0', '0', 'data:etl',           '#', 'admin', current_timestamp, '', null, 'ETL 预览/测试/AI生成');
+insert into sys_menu values(2321, '令牌查询',   2301, '12', '#', '', '', '', 1, 0, 'F', '0', '0', 'apitoken:list',      '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2322, '令牌生成',   2301, '13', '#', '', '', '', 1, 0, 'F', '0', '0', 'apitoken:add',       '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2323, '令牌删除',   2301, '14', '#', '', '', '', 1, 0, 'F', '0', '0', 'apitoken:remove',    '#', 'admin', current_timestamp, '', null, '');
+
+-- 数据管理员角色(role_id=3)分配数据管理全部菜单/权限
+insert into sys_role_menu values(3, 2300);
+insert into sys_role_menu values(3, 2301);
+insert into sys_role_menu values(3, 2302);
+insert into sys_role_menu values(3, 2310);
+insert into sys_role_menu values(3, 2311);
+insert into sys_role_menu values(3, 2312);
+insert into sys_role_menu values(3, 2313);
+insert into sys_role_menu values(3, 2314);
+insert into sys_role_menu values(3, 2315);
+insert into sys_role_menu values(3, 2316);
+insert into sys_role_menu values(3, 2317);
+insert into sys_role_menu values(3, 2318);
+insert into sys_role_menu values(3, 2319);
+insert into sys_role_menu values(3, 2320);
+insert into sys_role_menu values(3, 2321);
+insert into sys_role_menu values(3, 2322);
+insert into sys_role_menu values(3, 2323);
+
+-- ----------------------------
+-- 知识库模块菜单/权限(module_rag),一级菜单
+-- ----------------------------
+insert into sys_menu values(2400, '知识库',   0,    '1', 'rag',       null,                 '', '', 1, 0, 'M', '0', '0', '',               'documentation', 'admin', current_timestamp, '', null, '知识库目录');
+insert into sys_menu values(2401, '知识库管理', 2400, '1', 'dataset',   'rag/dataset/index',  '', '', 1, 0, 'C', '0', '0', 'rag:dataset:list', 'documentation', 'admin', current_timestamp, '', null, '知识库/文档/分段管理');
+insert into sys_menu values(2402, '召回测试',   2400, '2', 'retrieval', 'rag/retrieval/index','', '', 1, 0, 'C', '0', '0', 'rag:retrieval',    'search', 'admin', current_timestamp, '', null, '知识库召回测试');
+insert into sys_menu values(2410, '知识库查询', 2401, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:dataset:list', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2411, '知识库编辑', 2401, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:dataset:edit', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2412, '召回执行',   2402, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'rag:retrieval',    '#', 'admin', current_timestamp, '', null, '');
+
+-- 数据管理员角色(role_id=3)分配知识库菜单/权限
+insert into sys_role_menu values(3, 2400);
+insert into sys_role_menu values(3, 2401);
+insert into sys_role_menu values(3, 2402);
+insert into sys_role_menu values(3, 2410);
+insert into sys_role_menu values(3, 2411);
+insert into sys_role_menu values(3, 2412);
+
+-- ============================================================================
+-- 知识库模块(module_rag):知识库 / 文档 / 分段 / embedding 缓存
+-- ============================================================================
+drop table if exists rag_dataset;
+create table rag_dataset (
+  id                 varchar(36)  not null,
+  name               varchar(200) not null,
+  description        varchar(500),
+  source_id          varchar(36),
+  embedding_provider varchar(50),
+  embedding_model    varchar(100),
+  embedding_dims     int,
+  vector_backend     varchar(50)  default 'elasticsearch',
+  vector_source_id   varchar(36),
+  index_name         varchar(200),
+  retrieval_config   text,
+  built_in           smallint     default 0,
+  status             smallint     default 1,
+  tenant_id          bigint,
+  create_by          varchar(64)  default '',
+  create_time        timestamp,
+  update_by          varchar(64)  default '',
+  update_time        timestamp,
+  remark             varchar(500),
+  primary key (id)
+);
+create index idx_rag_dataset_tenant on rag_dataset (tenant_id);
+
+drop table if exists rag_document;
+create table rag_document (
+  id             varchar(36)   not null,
+  dataset_id     varchar(36)   not null,
+  name           varchar(300)  not null,
+  document_type  varchar(30)   default 'upload_file',
+  file_key       varchar(500),
+  source         varchar(1000),
+  meta_data      text,
+  chunk_strategy text,
+  content_hash   varchar(64),
+  status         smallint      default 1,
+  chunk_count    int           default 0,
+  error          varchar(1000),
+  tenant_id      bigint,
+  create_by      varchar(64)   default '',
+  create_time    timestamp,
+  update_by      varchar(64)   default '',
+  update_time    timestamp,
+  primary key (id)
+);
+create index idx_rag_document_dataset on rag_document (dataset_id);
+create index idx_rag_document_tenant on rag_document (tenant_id);
+
+drop table if exists rag_chunk;
+create table rag_chunk (
+  id            varchar(36) not null,
+  dataset_id    varchar(36) not null,
+  document_id   varchar(36) not null,
+  chunk_type    varchar(10) default 'chunk',
+  content       text,
+  question      text,
+  question_hash varchar(64),
+  answer        text,
+  hash          varchar(64),
+  position      int         default 0,
+  status        smallint    default 1,
+  star_flag     smallint    default 0,
+  tenant_id     bigint,
+  create_by     varchar(64) default '',
+  create_time   timestamp,
+  primary key (id)
+);
+create index idx_rag_chunk_dataset on rag_chunk (dataset_id);
+create index idx_rag_chunk_document on rag_chunk (document_id);
+create index idx_rag_chunk_qhash on rag_chunk (question_hash);
+create index idx_rag_chunk_tenant on rag_chunk (tenant_id);
+
+drop table if exists rag_embedding;
+create table rag_embedding (
+  id          bigserial   not null,
+  hash        varchar(64) not null,
+  model_id    varchar(150) not null,
+  dim         int,
+  vector      text,
+  create_time timestamp,
+  primary key (id),
+  unique (hash, model_id)
+);
+
+-- ============================================================================
+-- 数据管理模块(module_data)：数据源 / 数据模型
+-- ============================================================================
+drop table if exists data_source;
+create table data_source (
+  id           varchar(36)  not null,
+  name         varchar(200) default '',
+  code         varchar(200) default '',
+  source_type  varchar(50),
+  family       varchar(50),
+  config       jsonb,
+  secrets      text,
+  status       varchar(20)  default 'untested',
+  last_test_at timestamp,
+  remark       varchar(500) default '',
+  create_by    varchar(64)  default '',
+  create_time  timestamp,
+  update_by    varchar(64)  default '',
+  update_time  timestamp,
+  tenant_id    bigint,
+  primary key (id)
+);
+create index ix_data_source_tenant_id on data_source (tenant_id);
+create index ix_data_source_code on data_source (code);
+comment on table data_source is '数据源表';
+
+drop table if exists data_model;
+create table data_model (
+  id              varchar(36)  not null,
+  name            varchar(200) default '',
+  code            varchar(200) default '',
+  datasource_code varchar(200),
+  kind            varchar(50)  default 'table',
+  object_name     varchar(200),
+  db_schema       varchar(200) default '',
+  fields          jsonb,
+  default_filters jsonb,
+  auth            varchar(200) default 'query,extract',
+  status          smallint     default 1,
+  remark          varchar(500) default '',
+  create_by       varchar(64)  default '',
+  create_time     timestamp,
+  update_by       varchar(64)  default '',
+  update_time     timestamp,
+  tenant_id       bigint,
+  primary key (id)
+);
+create index ix_data_model_tenant_id on data_model (tenant_id);
+create index ix_data_model_code on data_model (code);
+comment on table data_model is '数据模型表';
+
+-- 通用 API Token 模块(module_apitoken)：apikey 校验,data_api/agent 等用途复用
+drop table if exists api_token;
+create table api_token (
+  id          varchar(36)  not null,
+  name        varchar(200) default '',
+  token       varchar(80),
+  token_type  varchar(50)  default 'data_api',
+  ref_id      varchar(200),
+  status      smallint     default 1,
+  expire_time timestamp,
+  remark      varchar(500) default '',
+  create_by   varchar(64)  default '',
+  create_time timestamp,
+  update_by   varchar(64)  default '',
+  update_time timestamp,
+  tenant_id   bigint,
+  primary key (id)
+);
+create index ix_api_token_token on api_token (token);
+create index ix_api_token_tenant_id on api_token (tenant_id);
+comment on table api_token is '通用 API Token 表(data_api/agent 复用)';
+
+-- ============================================================================
+-- 多租户(行级)：业务/组织表增加 tenant_id 列(值=顶级部门ID)，回填已有种子到默认租户(集团总公司=100)
+-- 租户=顶级部门(sys_dept parent_id=0)。平台超管(admin)绕过过滤可见全部。
+-- 全局共享(不加 tenant_id)：sys_menu/sys_dict_*/sys_config/sys_role/sys_post/task_template/sys_job_log。
+-- ============================================================================
+alter table task           add column tenant_id bigint;
+alter table task_instance  add column tenant_id bigint;
+alter table task_log       add column tenant_id bigint;
+alter table alert_strategy add column tenant_id bigint;
+alter table alert_record   add column tenant_id bigint;
+alter table ai_models      add column tenant_id bigint;
+alter table ai_chat_config add column tenant_id bigint;
+alter table sys_user       add column tenant_id bigint;
+alter table sys_dept       add column tenant_id bigint;
+alter table sys_notice     add column tenant_id bigint;
+alter table sys_job        add column tenant_id bigint;
+create index idx_task_tenant on task(tenant_id);
+create index idx_task_instance_tenant on task_instance(tenant_id);
+create index idx_task_log_tenant on task_log(tenant_id);
+create index idx_alert_strategy_tenant on alert_strategy(tenant_id);
+create index idx_alert_record_tenant on alert_record(tenant_id);
+create index idx_ai_models_tenant on ai_models(tenant_id);
+create index idx_ai_chat_config_tenant on ai_chat_config(tenant_id);
+create index idx_sys_user_tenant on sys_user(tenant_id);
+create index idx_sys_dept_tenant on sys_dept(tenant_id);
+create index idx_sys_notice_tenant on sys_notice(tenant_id);
+create index idx_sys_job_tenant on sys_job(tenant_id);
+update task set tenant_id=100;           update task_instance set tenant_id=100;  update task_log set tenant_id=100;
+update alert_strategy set tenant_id=100; update alert_record set tenant_id=100;
+update ai_models set tenant_id=100;      update ai_chat_config set tenant_id=100;
+update sys_user set tenant_id=100;       update sys_dept set tenant_id=100;       update sys_notice set tenant_id=100;  update sys_job set tenant_id=100;
+
+-- 演示数据已抽离:默认空项目。需要财经 demo(数据源/任务/模型/AI应用 + 填充 ES)时,服务启动后手动跑:
+--   docker exec -i ezdata-backend-my python - < api/demo_seed.py
+

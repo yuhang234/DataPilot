@@ -1,0 +1,64 @@
+agno==2.8.1
+aiofiles==25.1.0
+alembic==1.18.3
+anthropic==0.78.0
+APScheduler==3.11.2
+async-lru==2.1.0
+asyncmy==0.2.11
+bcrypt==5.0.0
+celery==5.4.0
+cerebras-cloud-sdk==1.67.0
+cohere==5.20.4
+elasticsearch>=8.13,<9
+fastapi[all]==0.128.2
+google-genai==1.62.0
+groq==1.0.0
+kafka-python==2.0.2
+litellm==1.81.8
+llama-api-client==0.6.0
+loguru==0.7.3
+mistralai==1.12.0
+ollama==0.6.1
+openai==2.17.0
+prometheus-client==0.21.1
+openpyxl==3.1.5
+# RAG 文件解析(pdf / docx / html)
+pypdf>=4.3  # unstructured 会拉 6.x
+python-docx==1.1.2
+beautifulsoup4==4.12.3
+lxml==5.3.0  # bs4 解析后端 / 代码取数(爬虫)HTML 解析
+# MCP 工具(agno.tools.mcp:MCPTools/MultiMCPTools 依赖)
+mcp==1.28.0
+# 内置工具:百度搜索(agno.tools.baidusearch:BaiduSearchTools 依赖;国内可达、免鉴权)
+baidusearch==1.0.3
+pycountry==24.6.1
+# 语义切分(Agno semantic chunking 依赖)
+chonkie==1.6.8
+# Agno 高级 readers/markdown 切分
+unstructured==0.18.32
+markdown==3.10.2
+python-pptx==1.0.2
+pandas==2.3.3
+pyecharts==2.0.6
+Pillow==12.1.1
+portkey-ai==2.1.0
+psutil==7.2.2
+pydantic>=2.11.4
+pydantic-validation-decorator==0.1.5
+PyJWT[crypto]==2.11.0
+PyMySQL==1.1.2
+redis==7.1.0
+ruff==0.15.0
+SQLAlchemy[asyncio]==2.0.46
+sqlglot[rs]==28.10.0
+textual==8.2.5
+user-agents==2.2.0
+.
+
+# 对象存储（S3 / MinIO，storage_type=s3 时使用）
+boto3
+
+# 可选:可观测性(OTel → Langfuse / 任意 OTLP 后端)。默认关,配 LANGFUSE_*/OTEL_* 才启用(见 module_ai/observability.py)。
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.38.0
+openinference-instrumentation-agno==1.0.3
