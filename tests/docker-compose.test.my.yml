@@ -1,0 +1,96 @@
+services:
+  # 前端服务
+  ruoyi-frontend:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    image: ruoyi-frontend:latest
+    container_name: ruoyi-frontend-test
+    ports:
+      - "80:80"
+    volumes:
+      - ../web/bin/nginx.dockermy.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - ruoyi-backend-my
+    networks:
+      - ruoyi-network-test
+
+  # 后端服务（MySQL版本）
+  ruoyi-backend-my:
+    build:
+      context: ../api
+      dockerfile: Dockerfile.my
+    image: ruoyi-backend-my:latest
+    container_name: ruoyi-backend-my-test
+    ports:
+      - "9099:9099"
+    environment:
+      TRANSPORT_CRYPTO_ENABLED: "false"
+      TRANSPORT_CRYPTO_MODE: "off"
+      # 镜像内 .env.dockermy 默认指向 ezdata-* 生产坐标(测试网里不存在)→ 必须覆盖到测试中间件,
+      # 否则后端起来连不上库/缓存,/captchaImage 一直不响应,卡在“Wait for services to be ready”。
+      DB_TYPE: mysql
+      DB_HOST: ruoyi-mysql
+      DB_PORT: "3306"
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_DATABASE: ruoyi-fastapi
+      DB_ECHO: "false"
+      REDIS_HOST: ruoyi-redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ""
+      REDIS_DATABASE: "0"
+      # 测试栈不起 ES / MinIO:任务日志走 DB、存储走本地,避免启动依赖外部服务。
+      TASK_LOG_TYPE: db
+      STORAGE_TYPE: local
+    depends_on:
+      ruoyi-mysql:
+        condition: service_healthy
+      ruoyi-redis:
+        condition: service_healthy
+    networks:
+      - ruoyi-network-test
+
+  # MySQL服务
+  ruoyi-mysql:
+    image: mysql:8.0
+    container_name: ruoyi-mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ruoyi-fastapi
+    ports:
+      - "13307:3306"
+    volumes:
+      - ../api/sql/ezdata.sql:/docker-entrypoint-initdb.d/01-ezdata.sql
+      - ./disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable-captcha.sql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
+    networks:
+      - ruoyi-network-test
+    healthcheck:
+      test: ["CMD", "bash", "-c", "mysqladmin ping -h localhost -u root -proot && mysql -h localhost -u root -proot -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      # 首启需 import 整份 ezdata.sql;start_period 内的失败不计数、不标 unhealthy,避免慢导入被误杀。
+      start_period: 240s
+
+  # Redis服务
+  ruoyi-redis:
+    image: redis:latest
+    container_name: ruoyi-redis-test
+    ports:
+      - "16380:6379"
+    networks:
+      - ruoyi-network-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+# 网络配置
+networks:
+  ruoyi-network-test:
+    name: ruoyi-network-test
+    driver: bridge
