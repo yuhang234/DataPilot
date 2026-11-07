@@ -312,7 +312,8 @@ async function runNative() {
     const res = await queryModel(props.model.id, { native: n })
     fill(res.data.records)
     if (subTab.value === 'viz') computeVizH()
-    ElMessage.success($t('查询到 {n} 行', { n: res.data.total }))
+    // 中文即 key(zh 无映射表),命名插值在缺省语言下不会替换 → 先取文案再替换 {n}
+    ElMessage.success($t('查询到 {n} 行').replace('{n}', String(res.data.total)))
   } catch (e) {
     ElMessage.error($t('查询失败'))
   } finally {
