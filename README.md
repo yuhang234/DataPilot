@@ -6,8 +6,31 @@
 
 ---
 
+## 界面预览
+
+> 以下界面均来自本地 dev 环境（MySQL + Elasticsearch + Redis + MinIO）灌入[演示数据](#演示数据)后的真实运行截图，不是设计稿：数据源连接、SQL 取数、看板图表、知识库召回、调度与告警全部走真实链路。
+
+| 控制台：数据源 / 任务 / AI / 用量总览 | 数据管理：数据源 → 模型树 + 原生 SQL 取数 |
+| --- | --- |
+| ![控制台](docs/screenshots/01_dashboard.png) | ![数据管理](docs/screenshots/02_data_manage.png) |
+
+| 数据看板：多图看板（矩阵布局 + 筛选联动） | 知识库：文档 + 分段（切分 → 向量化） |
+| --- | --- |
+| ![数据看板](docs/screenshots/03_dashboard_board.png) | ![知识库](docs/screenshots/04_knowledge_base.png) |
+
+| 知识库召回测试：混合 / 向量 / 全文 + 重排 | 任务调度：模板 / 定时 / 执行记录 |
+| --- | --- |
+| ![召回测试](docs/screenshots/05_rag_retrieval.png) | ![任务调度](docs/screenshots/06_task_schedule.png) |
+
+| 告警中心：策略 → 记录（多通道转发） | |
+| --- | --- |
+| ![告警中心](docs/screenshots/07_alert_center.png) | |
+
+---
+
 ## 目录
 
+- [界面预览](#界面预览)
 - [核心能力](#核心能力)
 - [系统架构](#系统架构)
 - [技术栈](#技术栈)
@@ -16,6 +39,7 @@
   - [方式一：Docker Compose（推荐）](#方式一docker-compose推荐)
   - [方式二：本地开发](#方式二本地开发)
   - [数据库初始化与迁移](#数据库初始化与迁移)
+  - [演示数据](#演示数据)
 - [配置说明](#配置说明)
 - [命令行工具（ruoyi CLI）](#命令行工具ruoyi-cli)
 - [测试与代码质量](#测试与代码质量)
@@ -231,6 +255,31 @@ ruoyi db upgrade
 ruoyi db current
 ruoyi db revision -m "add_xxx" --autogenerate
 ```
+
+### 演示数据
+
+平台默认是**空项目**（只有系统管理底座的用户/角色/菜单），直接部署时数据源、看板、知识库等页面都是空的。仓库内置两个**幂等、可反复执行**的种子脚本，按需二选一或全用：
+
+| 脚本 | 内容 | 是否依赖外网 |
+| --- | --- | --- |
+| `api/demo_seed_business.py` | **通用业务 demo**：MySQL 电商业务库（订单/商品/客户/流量 5 张表、约 1 万行造数）+ 5 数据模型 + 5 指标 + 3 看板 + 任务/模板/执行历史 + DAG 工作流 + 告警策略与记录 + AI 模型/应用/工具/技能 + 2 个知识库（文档 + QA + 向量） | 否，完全离线 |
+| `api/demo_seed.py` | 财经行情 demo：akshare 27 个数据集成任务 + ES 索引 + 财经看板 + 3 个 AI 应用 | 是（akshare 取数 + ES） |
+
+```bash
+# 通用业务 demo（推荐；容器内执行，镜像无需重建）
+docker exec -i datapilot-backend-dev python - < api/demo_seed_business.py
+
+# 测完清理（删 demo 业务库 + 平台侧 demo 数据）
+docker exec -i datapilot-backend-dev python - --clean < api/demo_seed_business.py
+```
+
+几点说明：
+
+- **数据是真的能查的**：种子在平台 MySQL 里建独立库 `datapilot_demo`，并注册为数据源 `demo_warehouse`；看板/在线取数都是对该库执行真实 SQL，可直接在「数据管理 → 数据查询」验证。
+- **知识库离线可用**：demo 知识库绑定 `provider=local` 的**特征哈希向量**（见 `api/module_rag/embedding.py`），无需任何 Embedding API Key 即可完成切分 → 向量化 → 混合召回；它只做词面相似度，生产环境请换成真实 embedding 模型（`EMBEDDING_TYPE` / 知识库绑定的 `ai_models`）。
+- **AI 应用可看不可答**：种子里的模型条目没有真实 API Key（避免提交密钥），替换成自己的 Key 即可对话；工具/技能/应用配置、提示词、预设问题都是完整可用的。
+- **dev 环境请固定密钥**：`JWT_SECRET_KEY` 未配置时每个进程会随机生成，导致数据源/AI 凭据密文跨进程解不开（表现为「数据源密码为空」）。dev 编排会读取仓库根目录的 `.env`（已在 `.gitignore` 中），至少写入 `JWT_SECRET_KEY` 与 `DATA_ENCRYPT_KEY`。
+- 截图脚本：`deploy/screenshot-demo.py`（Playwright，登录后逐页截图到 `docs/screenshots/`）。
 
 ---
 

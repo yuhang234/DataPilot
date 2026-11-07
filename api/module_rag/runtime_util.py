@@ -24,15 +24,22 @@ def md5(text: str) -> str:
 
 # ---------------- 向量库 ----------------
 def _vector_connection(dataset: RagDataset) -> dict[str, Any]:
-    """解析向量库连接:优先库绑定的 data_source(预留),否则 RagConfig 兜底。"""
+    """解析向量库连接:优先库绑定的 data_source(预留),否则 RagConfig 兜底。
+
+    未单独配 RAG_VECTOR_HOSTS 时 hosts 回退到任务日志 ES;此时账号口令也回退到同一套
+    (TASK_ES_USERNAME/PASSWORD),否则会出现「连的是任务日志 ES、却不带它的凭据」而 401。
+    """
     # TODO(P2): dataset.vector_source_id -> 读 data_source 行并解密,接非 ES 后端
+    fallback_to_task_es = not (RagConfig.rag_vector_hosts or '').strip()
     hosts = RagConfig.rag_vector_hosts or TaskLogConfig.task_es_hosts or 'http://127.0.0.1:9200'
     conn: dict[str, Any] = {'hosts': hosts}
+    user = RagConfig.rag_vector_user or (TaskLogConfig.task_es_username if fallback_to_task_es else '')
+    password = RagConfig.rag_vector_password or (TaskLogConfig.task_es_password if fallback_to_task_es else '')
     if RagConfig.rag_vector_api_key:
         conn['api_key'] = RagConfig.rag_vector_api_key
-    elif RagConfig.rag_vector_user:
-        conn['user'] = RagConfig.rag_vector_user
-        conn['password'] = RagConfig.rag_vector_password
+    elif user:
+        conn['user'] = user
+        conn['password'] = password
     return conn
 
 
